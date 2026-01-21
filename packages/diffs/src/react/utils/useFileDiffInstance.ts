@@ -7,7 +7,6 @@ import {
 } from 'react';
 
 import { FileDiff, type FileDiffOptions } from '../../components/FileDiff';
-import { SimpleVirtualizedFileDiff } from '../../components/SimpleVirtualizedFileDiff';
 import type { SelectedLineRange } from '../../managers/LineSelectionManager';
 import type { GetHoveredLineResult } from '../../managers/MouseEventManager';
 import type {
@@ -16,7 +15,6 @@ import type {
   FileDiffMetadata,
 } from '../../types';
 import { areOptionsEqual } from '../../utils/areOptionsEqual';
-import { useSimpleVirtualizer } from '../SimpleVirtualizer';
 import { WorkerPoolContext } from '../WorkerPoolContext';
 import { useStableCallback } from './useStableCallback';
 
@@ -47,11 +45,8 @@ export function useFileDiffInstance<LAnnotation>({
   selectedLines,
   prerenderedHTML,
 }: UseFileDiffInstanceProps<LAnnotation>): UseFileDiffInstanceReturn {
-  const simpleVirtualizer = useSimpleVirtualizer();
   const poolManager = useContext(WorkerPoolContext);
-  const instanceRef = useRef<
-    FileDiff<LAnnotation> | SimpleVirtualizedFileDiff<LAnnotation> | null
-  >(null);
+  const instanceRef = useRef<FileDiff<LAnnotation> | null>(null);
   const ref = useStableCallback((fileContainer: HTMLElement | null) => {
     if (fileContainer != null) {
       if (instanceRef.current != null) {
@@ -59,16 +54,7 @@ export function useFileDiffInstance<LAnnotation>({
           'useFileDiffInstance: An instance should not already exist when a node is created'
         );
       }
-      if (simpleVirtualizer != null) {
-        instanceRef.current = new SimpleVirtualizedFileDiff(
-          options,
-          simpleVirtualizer,
-          poolManager,
-          true
-        );
-      } else {
-        instanceRef.current = new FileDiff(options, poolManager, true);
-      }
+      instanceRef.current = new FileDiff(options, poolManager, true);
       void instanceRef.current.hydrate({
         fileDiff,
         oldFile,

@@ -5,11 +5,9 @@ import {
   type DiffsThemeNames,
   File,
   type FileContents,
-  type FileDiff,
+  FileDiff,
   FileStream,
   type ParsedPatch,
-  SimpleVirtualizedFileDiff,
-  SimpleVirtualizer,
   isHighlighterNull,
   parseDiffFromFile,
   parsePatchFiles,
@@ -81,9 +79,6 @@ const poolManager = (() => {
   return manager;
 })();
 
-const intersectionObserver = new SimpleVirtualizer();
-// const intersectionObserver = undefined;
-
 function startStreaming() {
   const container = document.getElementById('wrapper');
   if (container == null) return;
@@ -123,7 +118,6 @@ function renderDiff(parsedPatches: ParsedPatch[], manager?: WorkerPoolManager) {
   let patchIndex = 0;
   const themeType = getThemeType();
 
-  intersectionObserver.setup(globalThis.document);
   for (const parsedPatch of parsedPatches) {
     if (parsedPatch.patchMetadata != null) {
       wrapper.appendChild(createFileMetadata(parsedPatch.patchMetadata));
@@ -132,7 +126,7 @@ function renderDiff(parsedPatches: ParsedPatch[], manager?: WorkerPoolManager) {
     let hunkIndex = 0;
     for (const fileDiff of parsedPatch.files) {
       const fileAnnotations = patchAnnotations[hunkIndex];
-      const instance = new SimpleVirtualizedFileDiff<LineCommentMetadata>(
+      const instance = new FileDiff<LineCommentMetadata>(
         {
           theme: { dark: 'pierre-dark', light: 'pierre-light' },
           diffStyle: unified ? 'unified' : 'split',
@@ -248,7 +242,6 @@ function renderDiff(parsedPatches: ParsedPatch[], manager?: WorkerPoolManager) {
           // },
           // __debugMouseEvents: 'click',
         },
-        intersectionObserver,
         manager
       );
 
