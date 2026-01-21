@@ -1,8 +1,11 @@
 {
   "name": "@pierre/diffs",
-  "version": "1.0.7",
+  "version": "1.1.0-beta.1",
   "type": "module",
   "license": "apache-2.0",
+  "publishConfig": {
+    "tag": "beta"
+  },
   "scripts": {
     "build": "tsdown --clean",
     "dev": "echo 'Watching for changes…' && tsdown --watch --log-level error",
