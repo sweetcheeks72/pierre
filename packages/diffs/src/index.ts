@@ -92,6 +92,7 @@ export * from './utils/renderDiffWithHighlighter';
 export * from './utils/renderFileWithHighlighter';
 export * from './utils/setLanguageOverride';
 export * from './utils/setWrapperNodeProps';
+export * from './utils/trimPatchContext';
 export type * from './types';
 
 export { codeToHtml, createCSSVariablesTheme };
