@@ -1,7 +1,11 @@
 import type { ElementContent, Element as HASTElement } from 'hast';
 import { toHtml } from 'hast-util-to-html';
 
-import { DEFAULT_EXPANDED_REGION, DEFAULT_THEMES } from '../constants';
+import {
+  DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
+  DEFAULT_EXPANDED_REGION,
+  DEFAULT_THEMES,
+} from '../constants';
 import { areLanguagesAttached } from '../highlighter/languages/areLanguagesAttached';
 import {
   getHighlighterIfLoaded,
@@ -218,6 +222,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       disableLineNumbers = false,
       disableVirtualizationBuffers = false,
       expandUnchanged = false,
+      collapsedContextThreshold = DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
       expansionLineCount = 100,
       hunkSeparators = 'line-info',
       lineDiffType = 'word-alt',
@@ -236,6 +241,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       disableLineNumbers,
       disableVirtualizationBuffers,
       expandUnchanged,
+      collapsedContextThreshold,
       expansionLineCount,
       hunkSeparators,
       lineDiffType,
@@ -316,7 +322,8 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
     if (diff == null) {
       return undefined;
     }
-    const { expandUnchanged = false } = this.options;
+    const { expandUnchanged = false, collapsedContextThreshold } =
+      this.getOptionsWithDefaults();
     const cache = this.workerManager?.getDiffResultCache(diff);
     if (cache != null && this.renderCache == null) {
       this.renderCache = {
@@ -350,7 +357,8 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
             ? true
             : expandUnchanged
               ? true
-              : this.expandedHunks
+              : this.expandedHunks,
+          collapsedContextThreshold
         );
         this.renderCache.renderRange = renderRange;
       }
@@ -468,9 +476,11 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
     forcePlainText = false
   ): RenderDiffResult {
     const { options } = this.getRenderOptions(diff);
+    const { collapsedContextThreshold } = this.getOptionsWithDefaults();
     const result = renderDiffWithHighlighter(diff, highlighter, options, {
       forcePlainText,
       expandedHunks: forcePlainText ? true : undefined,
+      collapsedContextThreshold,
     });
     return { result, options };
   }
@@ -516,6 +526,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       disableVirtualizationBuffers,
       expandUnchanged,
       expansionLineCount,
+      collapsedContextThreshold,
       hunkSeparators,
     } = this.getOptionsWithDefaults();
 
@@ -597,6 +608,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       startingLine: renderRange.startingLine,
       totalLines: renderRange.totalLines,
       expandedHunks: expandUnchanged ? true : this.expandedHunks,
+      collapsedContextThreshold,
       callback: ({
         hunkIndex,
         hunk,

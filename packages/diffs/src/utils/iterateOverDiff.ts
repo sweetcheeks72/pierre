@@ -1,3 +1,4 @@
+import { DEFAULT_COLLAPSED_CONTEXT_THRESHOLD } from '../constants';
 import type {
   ChangeContent,
   FileDiffMetadata,
@@ -47,6 +48,7 @@ export interface IterateOverDiffProps {
   startingLine?: number;
   totalLines?: number;
   expandedHunks?: Map<number, HunkExpansionRegion> | true;
+  collapsedContextThreshold?: number;
   callback: DiffLineCallback;
 }
 
@@ -56,6 +58,7 @@ export function iterateOverDiff({
   startingLine = 0,
   totalLines = Infinity,
   expandedHunks,
+  collapsedContextThreshold = DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
   callback,
 }: IterateOverDiffProps): void {
   const state: IterationState = {
@@ -163,7 +166,8 @@ export function iterateOverDiff({
       diff.isPartial,
       hunk.collapsedBefore,
       expandedHunks,
-      hunkIndex
+      hunkIndex,
+      collapsedContextThreshold
     );
     // We only create a trailing region if it's the last hunk
     const trailingRegion = (() => {
@@ -188,7 +192,8 @@ export function iterateOverDiff({
         trailingRangeSize,
         expandedHunks,
         // hunkIndex for trailing region
-        diff.hunks.length
+        diff.hunks.length,
+        collapsedContextThreshold
       );
     })();
     const expandedLineCount = leadingRegion.fromStart + leadingRegion.fromEnd;
@@ -503,7 +508,8 @@ function getExpandedRegion(
   isPartial: boolean,
   rangeSize: number,
   expandedHunks: Map<number, HunkExpansionRegion> | true | undefined,
-  hunkIndex: number
+  hunkIndex: number,
+  collapsedContextThreshold: number
 ): ExpandedRegionResult {
   rangeSize = Math.max(rangeSize, 0);
   if (rangeSize === 0 || isPartial) {
@@ -514,7 +520,7 @@ function getExpandedRegion(
       collapsedLines: Math.max(rangeSize, 0),
     };
   }
-  if (expandedHunks === true) {
+  if (expandedHunks === true || rangeSize <= collapsedContextThreshold) {
     return {
       fromStart: rangeSize,
       fromEnd: 0,

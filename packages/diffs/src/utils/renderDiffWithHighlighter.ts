@@ -1,6 +1,9 @@
 import { diffChars, diffWordsWithSpace } from 'diff';
 
-import { DEFAULT_THEMES } from '../constants';
+import {
+  DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
+  DEFAULT_THEMES,
+} from '../constants';
 import type {
   CodeToHastOptions,
   DecorationItem,
@@ -41,6 +44,7 @@ export function renderDiffWithHighlighter(
     startingLine,
     totalLines,
     expandedHunks,
+    collapsedContextThreshold = DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
   }: ForcePlainTextOptions = DEFAULT_PLAIN_TEXT_OPTIONS
 ): ThemedDiffResult {
   if (forcePlainText) {
@@ -123,6 +127,7 @@ export function renderDiffWithHighlighter(
     startingLine,
     totalLines,
     expandedHunks: isWindowedHighlight ? expandedHunksForIteration : true,
+    collapsedContextThreshold,
     callback: ({
       hunkIndex,
       additionLineIndex,
