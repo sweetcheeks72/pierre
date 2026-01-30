@@ -78,6 +78,12 @@ export interface FileDiffOptions<LAnnotation>
       ) => HTMLElement | DocumentFragment);
   disableFileHeader?: boolean;
   renderHeaderMetadata?: RenderHeaderMetadataCallback;
+  /**
+   * When true, errors during rendering are rethrown instead of being caught
+   * and displayed in the DOM. Useful for testing or when you want to handle
+   * errors yourself.
+   */
+  disableErrorHandling?: boolean;
   renderAnnotation?(
     annotation: DiffLineAnnotation<LAnnotation>
   ): HTMLElement | undefined;
@@ -404,7 +410,8 @@ export class FileDiff<LAnnotation = undefined> {
 
     this.hunksRenderer.setLineAnnotations(this.lineAnnotations);
 
-    const { disableFileHeader = false } = this.options;
+    const { disableFileHeader = false, disableErrorHandling = false } =
+      this.options;
 
     if (disableFileHeader) {
       // Remove existing header from DOM
@@ -436,6 +443,10 @@ export class FileDiff<LAnnotation = undefined> {
       this.renderAnnotations();
       this.renderHoverUtility();
     } catch (error: unknown) {
+      if (disableErrorHandling) {
+        throw error;
+      }
+      console.error(error);
       if (error instanceof Error) {
         this.applyErrorToDOM(error, fileContainer);
       }

@@ -61,6 +61,12 @@ export interface FileOptions<LAnnotation>
     LineSelectionOptions {
   disableFileHeader?: boolean;
   renderCustomMetadata?: RenderFileMetadata;
+  /**
+   * When true, errors during rendering are rethrown instead of being caught
+   * and displayed in the DOM. Useful for testing or when you want to handle
+   * errors yourself.
+   */
+  disableErrorHandling?: boolean;
   renderAnnotation?(
     annotation: LineAnnotation<LAnnotation>
   ): HTMLElement | undefined;
@@ -280,7 +286,8 @@ export class File<LAnnotation = undefined> {
     }
     this.fileRenderer.setLineAnnotations(this.lineAnnotations);
 
-    const { disableFileHeader = false } = this.options;
+    const { disableFileHeader = false, disableErrorHandling = false } =
+      this.options;
     if (disableFileHeader) {
       // Remove existing header from DOM
       if (this.headerElement != null) {
@@ -310,6 +317,10 @@ export class File<LAnnotation = undefined> {
       this.renderAnnotations();
       this.renderHoverUtility();
     } catch (error: unknown) {
+      if (disableErrorHandling) {
+        throw error;
+      }
+      console.error(error);
       if (error instanceof Error) {
         this.applyErrorToDOM(error, fileContainer);
       }
