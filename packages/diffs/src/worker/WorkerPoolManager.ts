@@ -21,7 +21,6 @@ import type {
   SupportedLanguages,
   ThemedDiffResult,
   ThemedFileResult,
-  ThemeRegistrationResolved,
 } from '../types';
 import { areFilesEqual } from '../utils/areFilesEqual';
 import { areThemesEqual } from '../utils/areThemesEqual';
@@ -40,6 +39,8 @@ import type {
   RenderFileTask,
   ResolvedLanguage,
   SetRenderOptionsWorkerTask,
+  ShikiWorkerTokenizerBootstrapData,
+  ShikiWorkerTokenizerRenderPayload,
   SubmitRequest,
   WorkerInitializationRenderOptions,
   WorkerPoolOptions,
@@ -47,6 +48,7 @@ import type {
   WorkerRequestId,
   WorkerResponse,
   WorkerStats,
+  WorkerTokenizerBootstrap,
 } from './types';
 
 const IGNORE_RESPONSE = Symbol('IGNORE_RESPONSE');
@@ -96,9 +98,15 @@ export class WorkerPoolManager {
       theme = DEFAULT_THEMES,
       lineDiffType = 'word-alt',
       tokenizeMaxLineLength = 1000,
+      tokenizer = 'shiki',
     }: WorkerInitializationRenderOptions
   ) {
-    this.renderOptions = { theme, lineDiffType, tokenizeMaxLineLength };
+    this.renderOptions = {
+      theme,
+      lineDiffType,
+      tokenizeMaxLineLength,
+      tokenizer,
+    };
     this.fileCache = new LRUMapPkg.LRUMap(options.totalASTLRUCacheSize ?? 100);
     this.diffCache = new LRUMapPkg.LRUMap(options.totalASTLRUCacheSize ?? 100);
     void this.initialize(langs);
@@ -145,11 +153,13 @@ export class WorkerPoolManager {
     theme = DEFAULT_THEMES,
     lineDiffType = 'word-alt',
     tokenizeMaxLineLength = 1000,
+    tokenizer = this.renderOptions.tokenizer,
   }: Partial<WorkerRenderingOptions>): Promise<void> {
     const newRenderOptions: WorkerRenderingOptions = {
       theme,
       lineDiffType,
       tokenizeMaxLineLength,
+      tokenizer,
     };
     if (!this.isInitialized()) {
       await this.initialize();
@@ -162,31 +172,20 @@ export class WorkerPoolManager {
       themesEqual &&
       newRenderOptions.lineDiffType === this.renderOptions.lineDiffType &&
       newRenderOptions.tokenizeMaxLineLength ===
-        this.renderOptions.tokenizeMaxLineLength
+        this.renderOptions.tokenizeMaxLineLength &&
+      newRenderOptions.tokenizer === this.renderOptions.tokenizer
     ) {
       return;
     }
 
-    const themeNames = getThemes(theme);
-    let resolvedThemes: ThemeRegistrationResolved[] = [];
-    if (!themesEqual) {
-      if (hasResolvedThemes(themeNames)) {
-        resolvedThemes = getResolvedThemes(themeNames);
-      } else {
-        resolvedThemes = await resolveThemes(themeNames);
-      }
-    }
+    const tokenizerBootstrap = await this.resolveTokenizerBootstrap({
+      renderOptions: newRenderOptions,
+      languages: [],
+      includeLanguages: false,
+    });
 
-    if (this.highlighter != null) {
-      attachResolvedThemes(resolvedThemes, this.highlighter);
-      await this.setRenderOptionsOnWorkers(newRenderOptions, resolvedThemes);
-    } else {
-      const [highlighter] = await Promise.all([
-        getSharedHighlighter({ themes: themeNames, langs: ['text'] }),
-        this.setRenderOptionsOnWorkers(newRenderOptions, resolvedThemes),
-      ]);
-      this.highlighter = highlighter;
-    }
+    await this.setRenderOptionsOnWorkers(newRenderOptions, tokenizerBootstrap);
+    await this.syncMainThreadHighlighterForWorkerTokenizer(newRenderOptions);
 
     this.renderOptions = newRenderOptions;
     this.diffCache.clear();
@@ -203,12 +202,13 @@ export class WorkerPoolManager {
   }
 
   getDiffRenderOptions(): RenderDiffOptions {
-    return { ...this.renderOptions };
+    const { theme, tokenizeMaxLineLength, lineDiffType } = this.renderOptions;
+    return { theme, tokenizeMaxLineLength, lineDiffType };
   }
 
   private async setRenderOptionsOnWorkers(
     renderOptions: WorkerRenderingOptions,
-    resolvedThemes: ThemeRegistrationResolved[]
+    tokenizerBootstrap: WorkerTokenizerBootstrap
   ): Promise<void> {
     if (this.workersFailed) {
       return;
@@ -234,7 +234,7 @@ export class WorkerPoolManager {
               type: 'set-render-options',
               id,
               renderOptions,
-              resolvedThemes,
+              tokenizerBootstrap,
             },
             resolve,
             reject,
@@ -314,24 +314,18 @@ export class WorkerPoolManager {
       this.initialized = new Promise((resolve, reject) => {
         void (async () => {
           try {
-            const themes = getThemes(this.renderOptions.theme);
-            let resolvedThemes: ThemeRegistrationResolved[] = [];
-            if (hasResolvedThemes(themes)) {
-              resolvedThemes = getResolvedThemes(themes);
-            } else {
-              resolvedThemes = await resolveThemes(themes);
-            }
+            const tokenizerBootstrap = await this.resolveTokenizerBootstrap({
+              renderOptions: this.renderOptions,
+              languages,
+              includeLanguages: true,
+            });
 
-            let resolvedLanguages: ResolvedLanguage[] = [];
-            if (hasResolvedLanguages(languages)) {
-              resolvedLanguages = getResolvedLanguages(languages);
-            } else {
-              resolvedLanguages = await resolveLanguages(languages);
-            }
-
-            const [highlighter] = await Promise.all([
-              getSharedHighlighter({ themes, langs: ['text', ...languages] }),
-              this.initializeWorkers(resolvedThemes, resolvedLanguages),
+            await Promise.all([
+              this.syncMainThreadHighlighterForWorkerTokenizer(
+                this.renderOptions,
+                languages
+              ),
+              this.initializeWorkers(tokenizerBootstrap, languages),
             ]);
 
             // If we were terminated while initializing, we should probably kill
@@ -342,7 +336,6 @@ export class WorkerPoolManager {
                 'WorkerPoolManager: workers failed to initialize'
               );
             }
-            this.highlighter = highlighter;
             this.initialized = true;
             this.diffCache.clear();
             this.fileCache.clear();
@@ -364,8 +357,8 @@ export class WorkerPoolManager {
   }
 
   private async initializeWorkers(
-    resolvedThemes: ThemeRegistrationResolved[],
-    resolvedLanguages: ResolvedLanguage[]
+    tokenizerBootstrap: WorkerTokenizerBootstrap,
+    preloadLanguages: SupportedLanguages[]
   ): Promise<void> {
     this.workersFailed = false;
     const initPromises: Promise<unknown>[] = [];
@@ -378,7 +371,7 @@ export class WorkerPoolManager {
         worker,
         request_id: undefined,
         initialized: false,
-        langs: new Set(['text', ...resolvedLanguages.map(({ name }) => name)]),
+        langs: new Set(['text', ...preloadLanguages]),
       };
       worker.addEventListener(
         'message',
@@ -400,8 +393,7 @@ export class WorkerPoolManager {
               type: 'initialize',
               id,
               renderOptions: this.renderOptions,
-              resolvedThemes,
-              resolvedLanguages,
+              tokenizerBootstrap,
             },
             resolve() {
               managedWorker.initialized = true;
@@ -431,7 +423,7 @@ export class WorkerPoolManager {
       if (this.instanceRequestMap.has(instance)) {
         continue;
       }
-      const langs = getLangsFromTask(task);
+      const langs = this.getLangsFromTask(task);
       const availableWorker = this.getAvailableWorker(langs);
       if (availableWorker == null) {
         break;
@@ -617,14 +609,10 @@ export class WorkerPoolManager {
         (lang) => !availableWorker.langs.has(lang)
       );
 
-      if (workerMissingLangs.length > 0) {
-        if (hasResolvedLanguages(workerMissingLangs)) {
-          task.request.resolvedLanguages =
-            getResolvedLanguages(workerMissingLangs);
-        } else {
-          task.request.resolvedLanguages =
-            await resolveLanguages(workerMissingLangs);
-        }
+      const tokenizerPayload =
+        await this.resolveTaskTokenizerPayload(workerMissingLangs);
+      if (tokenizerPayload != null) {
+        task.request.tokenizerPayload = tokenizerPayload;
       }
       this.executeTask(availableWorker, task);
     } catch {
@@ -751,7 +739,7 @@ export class WorkerPoolManager {
     task: AllWorkerTasks
   ): void {
     this.assignWorkerToTask(task, managedWorker);
-    for (const lang of getLangsFromTask(task)) {
+    for (const lang of this.getLangsFromTask(task)) {
       managedWorker.langs.add(lang);
     }
     try {
@@ -794,36 +782,124 @@ export class WorkerPoolManager {
     return worker;
   }
 
+  private getLangsFromTask(task: AllWorkerTasks): SupportedLanguages[] {
+    if (this.renderOptions.tokenizer !== 'shiki') {
+      return [];
+    }
+    const langs = new Set<SupportedLanguages>();
+    if (task.type === 'initialize' || task.type === 'set-render-options') {
+      return [];
+    }
+    switch (task.type) {
+      case 'file': {
+        langs.add(
+          task.request.file.lang ??
+            getFiletypeFromFileName(task.request.file.name)
+        );
+        break;
+      }
+      case 'diff': {
+        langs.add(
+          task.request.diff.lang ??
+            getFiletypeFromFileName(task.request.diff.name)
+        );
+        langs.add(
+          task.request.diff.lang ??
+            getFiletypeFromFileName(task.request.diff.prevName ?? '-')
+        );
+        break;
+      }
+    }
+    langs.delete('text');
+    langs.delete('ansi');
+    return Array.from(langs);
+  }
+
+  private async resolveTaskTokenizerPayload(
+    workerMissingLangs: SupportedLanguages[]
+  ): Promise<unknown | undefined> {
+    if (
+      this.renderOptions.tokenizer !== 'shiki' ||
+      workerMissingLangs.length === 0
+    ) {
+      return undefined;
+    }
+    const resolvedLanguages = hasResolvedLanguages(workerMissingLangs)
+      ? getResolvedLanguages(workerMissingLangs)
+      : await resolveLanguages(workerMissingLangs);
+    const payload: ShikiWorkerTokenizerRenderPayload = { resolvedLanguages };
+    return payload;
+  }
+
+  private async resolveTokenizerBootstrap({
+    renderOptions,
+    languages,
+    includeLanguages,
+  }: {
+    renderOptions: WorkerRenderingOptions;
+    languages: SupportedLanguages[];
+    includeLanguages: boolean;
+  }): Promise<WorkerTokenizerBootstrap> {
+    switch (renderOptions.tokenizer) {
+      case 'shiki': {
+        const themeNames = getThemes(renderOptions.theme);
+        const resolvedThemes = hasResolvedThemes(themeNames)
+          ? getResolvedThemes(themeNames)
+          : await resolveThemes(themeNames);
+
+        const shikiLanguages = includeLanguages
+          ? languages.filter((lang) => lang !== 'text' && lang !== 'ansi')
+          : [];
+        let resolvedLanguages: ResolvedLanguage[] | undefined;
+        if (shikiLanguages.length > 0) {
+          resolvedLanguages = hasResolvedLanguages(shikiLanguages)
+            ? getResolvedLanguages(shikiLanguages)
+            : await resolveLanguages(shikiLanguages);
+        }
+        const data: ShikiWorkerTokenizerBootstrapData = {
+          resolvedThemes,
+          resolvedLanguages,
+        };
+        return { type: 'shiki', data };
+      }
+      default:
+        throw new Error(
+          `WorkerPoolManager: unsupported worker tokenizer "${String(
+            renderOptions.tokenizer
+          )}".`
+        );
+    }
+  }
+
+  private async syncMainThreadHighlighterForWorkerTokenizer(
+    renderOptions: WorkerRenderingOptions,
+    languages: SupportedLanguages[] = []
+  ): Promise<void> {
+    if (renderOptions.tokenizer !== 'shiki') {
+      this.highlighter = undefined;
+      return;
+    }
+
+    const themeNames = getThemes(renderOptions.theme);
+    const shikiLanguages = languages.filter(
+      (lang) => lang !== 'text' && lang !== 'ansi'
+    );
+
+    if (this.highlighter != null) {
+      const resolvedThemes = hasResolvedThemes(themeNames)
+        ? getResolvedThemes(themeNames)
+        : await resolveThemes(themeNames);
+      attachResolvedThemes(resolvedThemes, this.highlighter);
+      return;
+    }
+
+    this.highlighter = await getSharedHighlighter({
+      themes: themeNames,
+      langs: ['text', ...shikiLanguages],
+    });
+  }
+
   private generateRequestId(): WorkerRequestId {
     return `req_${++this.nextRequestId}`;
   }
-}
-
-function getLangsFromTask(task: AllWorkerTasks): SupportedLanguages[] {
-  const langs = new Set<SupportedLanguages>();
-  if (task.type === 'initialize' || task.type === 'set-render-options') {
-    return [];
-  }
-  switch (task.type) {
-    case 'file': {
-      langs.add(
-        task.request.file.lang ??
-          getFiletypeFromFileName(task.request.file.name)
-      );
-      break;
-    }
-    case 'diff': {
-      langs.add(
-        task.request.diff.lang ??
-          getFiletypeFromFileName(task.request.diff.name)
-      );
-      langs.add(
-        task.request.diff.lang ??
-          getFiletypeFromFileName(task.request.diff.prevName ?? '-')
-      );
-      break;
-    }
-  }
-  langs.delete('text');
-  return Array.from(langs);
 }

@@ -14,11 +14,27 @@ import type {
 } from '../types';
 
 export type WorkerRequestId = string;
+export type WorkerTokenizerType = 'shiki' | (string & {});
+
+export interface WorkerTokenizerBootstrap {
+  type: WorkerTokenizerType;
+  data?: unknown;
+}
+
+export interface ShikiWorkerTokenizerBootstrapData {
+  resolvedThemes: ThemeRegistrationResolved[];
+  resolvedLanguages?: ResolvedLanguage[];
+}
+
+export interface ShikiWorkerTokenizerRenderPayload {
+  resolvedLanguages?: ResolvedLanguage[];
+}
 
 export interface WorkerRenderingOptions {
   theme: DiffsThemeNames | ThemesType;
   tokenizeMaxLineLength: number;
   lineDiffType: LineDiffTypes;
+  tokenizer: WorkerTokenizerType;
 }
 
 export interface FileRendererInstance {
@@ -45,22 +61,21 @@ export interface RenderFileRequest {
   type: 'file';
   id: WorkerRequestId;
   file: FileContents;
-  resolvedLanguages?: ResolvedLanguage[];
+  tokenizerPayload?: unknown;
 }
 
 export interface RenderDiffRequest {
   type: 'diff';
   id: WorkerRequestId;
   diff: FileDiffMetadata;
-  resolvedLanguages?: ResolvedLanguage[];
+  tokenizerPayload?: unknown;
 }
 
 export interface InitializeWorkerRequest {
   type: 'initialize';
   id: WorkerRequestId;
   renderOptions: WorkerRenderingOptions;
-  resolvedThemes: ThemeRegistrationResolved[];
-  resolvedLanguages?: ResolvedLanguage[];
+  tokenizerBootstrap: WorkerTokenizerBootstrap;
 }
 
 export interface ResolvedLanguage {
@@ -72,7 +87,7 @@ export interface SetRenderOptionsWorkerRequest {
   type: 'set-render-options';
   id: WorkerRequestId;
   renderOptions: WorkerRenderingOptions;
-  resolvedThemes: ThemeRegistrationResolved[];
+  tokenizerBootstrap: WorkerTokenizerBootstrap;
 }
 
 export type SubmitRequest =
