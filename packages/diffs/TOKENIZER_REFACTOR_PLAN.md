@@ -93,8 +93,10 @@ than coupled to Shiki internals, while preserving current behavior by default.
 1. PR1 complete.
 2. PR2 complete.
 3. PR3 complete: `ArboriumTokenizer` adapter and usage docs added as a spike.
-4. PR4 in progress: worker tokenizer bootstrap/runtime generalized beyond Shiki;
+4. PR4 complete: worker tokenizer bootstrap/runtime generalized beyond Shiki;
    streaming remains capability-gated with Shiki as the active stream adapter.
+5. PR5 stub complete: remote token contract + `RemoteTokenizer` adapter with
+   fallback behavior (cloud transport remains provider-implemented).
 
 ## Acceptance Criteria
 

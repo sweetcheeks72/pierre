@@ -39,6 +39,7 @@ export * from './managers/ScrollSyncManager';
 export * from './managers/UniversalRenderingManager';
 export * from './renderers/DiffHunksRenderer';
 export * from './renderers/FileRenderer';
+export * from './remoteTokens';
 export * from './shiki-stream';
 export * from './sprite';
 export * from './tokenizers';

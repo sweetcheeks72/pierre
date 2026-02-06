@@ -53,6 +53,24 @@ const highlighterOptions = {
 };
 ```
 
+## Remote Token Contract (Stub)
+
+`@pierre/diffs` now exports a versioned remote token contract so cloud providers
+can conform before a first-party cloud API exists:
+
+```ts
+import type {
+  RemoteTokenTransport,
+  RemoteFileTokenFrame,
+  RemoteDiffTokenFrame,
+} from '@pierre/diffs';
+import { RemoteTokenizer } from '@pierre/diffs';
+```
+
+`RemoteTokenizer` consumes `RemoteTokenTransport` streams and automatically
+falls back to a local tokenizer on timeout, invalid frames, or incomplete
+streams.
+
 ## Development
 
 Technically you can use the package manager of your choice, but we use
