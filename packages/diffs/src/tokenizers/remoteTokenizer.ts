@@ -22,7 +22,7 @@ import type {
 } from '../types';
 import { createHastElement, createTextNodeElement } from '../utils/hast_utils';
 import { splitFileContents } from '../utils/splitFileContents';
-import { getShikiTokenizer } from './shikiTokenizer';
+import { getShikiTokenizer } from './shiki/shikiTokenizer';
 
 const REMOTE_TOKENIZER_CAPABILITIES: DiffsTokenizerCapabilities = Object.freeze(
   {

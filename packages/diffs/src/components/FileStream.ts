@@ -1,14 +1,17 @@
-import { ArboriumCodeToTokenTransformStream } from '../arborium-stream';
-import type { ArboriumStreamToken } from '../arborium-stream/types';
 import { DEFAULT_THEMES, DIFFS_TAG_NAME } from '../constants';
 import { getSharedHighlighter } from '../highlighter/shared_highlighter';
 import { queueRender } from '../managers/UniversalRenderingManager';
-import { CodeToTokenTransformStream, type RecallToken } from '../shiki-stream';
 import {
   getShikiTokenizer,
   isArboriumTokenizer,
   isShikiTokenizer,
 } from '../tokenizers';
+import { ArboriumCodeToTokenTransformStream } from '../tokenizers/arborium';
+import type { ArboriumStreamToken } from '../tokenizers/arborium/types';
+import {
+  CodeToTokenTransformStream,
+  type RecallToken,
+} from '../tokenizers/shiki';
 import type {
   BaseCodeOptions,
   DiffsHighlighter,

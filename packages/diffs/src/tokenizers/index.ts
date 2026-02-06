@@ -1,3 +1,3 @@
-export * from './arboriumTokenizer';
+export * from './arborium';
 export * from './remoteTokenizer';
-export * from './shikiTokenizer';
+export * from './shiki';

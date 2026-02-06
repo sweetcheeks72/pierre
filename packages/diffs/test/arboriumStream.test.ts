@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 
-import { ArboriumCodeToTokenTransformStream } from '../src/arborium-stream';
-import type { ArboriumStreamModule } from '../src/arborium-stream/types';
+import { ArboriumCodeToTokenTransformStream } from '../src/tokenizers/arborium';
+import type { ArboriumStreamModule } from '../src/tokenizers/arborium/types';
 
 function createMockModule(
   highlight: (source: string) => string | Promise<string>
@@ -94,6 +94,48 @@ describe('ArboriumCodeToTokenTransformStream', () => {
     expect(tokens[2].content).toBe('\n');
   });
 
+  test('decodes html entities in streamed tokens', async () => {
+    const tokens = await collectStreamTokens({
+      chunks: ['const value\n'],
+      highlight: () => '<a-b>&amp;&lt;&gt;&quot;&#39;</a-b>',
+    });
+
+    expect(tokens[0].content).toBe(`&<>"'`);
+    expect(tokens[0].wrappers?.map((wrapper) => wrapper.tagName)).toEqual([
+      'a-b',
+    ]);
+    expect(tokens[1].content).toBe('\n');
+  });
+
+  test('does not load grammar for text language streams', async () => {
+    let loadModuleCalls = 0;
+    const source = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue('plain text\n');
+        controller.close();
+      },
+    });
+
+    const transformed = source.pipeThrough(
+      new ArboriumCodeToTokenTransformStream({
+        lang: 'text',
+        loadModule: () => {
+          loadModuleCalls++;
+          return Promise.resolve(
+            createMockModule((text) => `<a-b>${text}</a-b>`)
+          );
+        },
+      })
+    );
+    const reader = transformed.getReader();
+    const first = await reader.read();
+    const second = await reader.read();
+
+    expect(loadModuleCalls).toBe(0);
+    expect(first.value?.content).toBe('plain text');
+    expect(second.value?.content).toBe('\n');
+  });
+
   test('normalizes window global before loading arborium stream module', async () => {
     const scope = globalThis as Record<string, unknown>;
     const hadWindow = 'window' in scope;
@@ -130,5 +172,64 @@ describe('ArboriumCodeToTokenTransformStream', () => {
         delete scope.window;
       }
     }
+  });
+
+  test('throws when fallbackToPlainText is disabled and module loading fails', async () => {
+    const source = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue('const value = 1;\n');
+        controller.close();
+      },
+    });
+
+    const transformed = source.pipeThrough(
+      new ArboriumCodeToTokenTransformStream({
+        lang: 'typescript',
+        fallbackToPlainText: false,
+        loadModule: () => Promise.reject(new Error('missing arborium')),
+      })
+    );
+
+    let thrown: unknown;
+    try {
+      await transformed.getReader().read();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('missing arborium');
+  });
+
+  test('throws when fallbackToPlainText is disabled and highlighting fails', async () => {
+    const source = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue('const value = 1;\n');
+        controller.close();
+      },
+    });
+
+    const transformed = source.pipeThrough(
+      new ArboriumCodeToTokenTransformStream({
+        lang: 'typescript',
+        fallbackToPlainText: false,
+        loadModule: () =>
+          Promise.resolve(
+            createMockModule(() => {
+              throw new Error('highlight failure');
+            })
+          ),
+      })
+    );
+
+    let thrown: unknown;
+    try {
+      await transformed.getReader().read();
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('highlight failure');
   });
 });

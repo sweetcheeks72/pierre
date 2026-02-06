@@ -12,10 +12,10 @@ import type {
   SupportedLanguages,
   ThemedDiffResult,
   ThemedFileResult,
-} from '../types';
-import { getFiletypeFromFileName } from '../utils/getFiletypeFromFileName';
-import { createTextNodeElement } from '../utils/hast_utils';
-import { splitFileContents } from '../utils/splitFileContents';
+} from '../../types';
+import { getFiletypeFromFileName } from '../../utils/getFiletypeFromFileName';
+import { createTextNodeElement } from '../../utils/hast_utils';
+import { splitFileContents } from '../../utils/splitFileContents';
 
 interface ArboriumGrammar {
   highlight(source: string): string | Promise<string>;

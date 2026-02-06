@@ -7,7 +7,7 @@ import {
 import type {
   ArboriumStreamToken,
   ArboriumStreamTokenWrapper,
-} from '../arborium-stream';
+} from '../tokenizers/arborium';
 
 type StreamToken = ThemedToken | ArboriumStreamToken;
 

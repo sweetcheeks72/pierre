@@ -1,8 +1,8 @@
 import {
   DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
   DEFAULT_THEMES,
-} from '../constants';
-import { getSharedHighlighter } from '../highlighter/shared_highlighter';
+} from '../../constants';
+import { getSharedHighlighter } from '../../highlighter/shared_highlighter';
 import type {
   DiffsTokenizer,
   DiffsTokenizerCapabilities,
@@ -12,11 +12,11 @@ import type {
   ForceFilePlainTextOptions,
   ThemedDiffResult,
   ThemedFileResult,
-} from '../types';
-import { getFiletypeFromFileName } from '../utils/getFiletypeFromFileName';
-import { getHighlighterOptions } from '../utils/getHighlighterOptions';
-import { renderDiffWithHighlighter } from '../utils/renderDiffWithHighlighter';
-import { renderFileWithHighlighter } from '../utils/renderFileWithHighlighter';
+} from '../../types';
+import { getFiletypeFromFileName } from '../../utils/getFiletypeFromFileName';
+import { getHighlighterOptions } from '../../utils/getHighlighterOptions';
+import { renderDiffWithHighlighter } from '../../utils/renderDiffWithHighlighter';
+import { renderFileWithHighlighter } from '../../utils/renderFileWithHighlighter';
 
 const SHIKI_TOKENIZER_CAPABILITIES: DiffsTokenizerCapabilities = Object.freeze({
   supportsWorkers: true,

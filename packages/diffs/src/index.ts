@@ -40,7 +40,7 @@ export * from './managers/UniversalRenderingManager';
 export * from './renderers/DiffHunksRenderer';
 export * from './renderers/FileRenderer';
 export * from './remoteTokens';
-export * from './shiki-stream';
+export * from './tokenizers/shiki';
 export * from './sprite';
 export * from './tokenizers';
 export * from './utils/areDiffLineAnnotationsEqual';

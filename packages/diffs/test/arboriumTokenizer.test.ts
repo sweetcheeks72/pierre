@@ -15,6 +15,20 @@ function createMockArboriumModule(
 }
 
 describe('ArboriumTokenizer', () => {
+  test('exposes tokenizer style config', () => {
+    const tokenizer = new ArboriumTokenizer({
+      tokenizerStyles: 'a-k{color:red;}',
+      themeStyles: '--diffs-dark:#000;',
+      baseThemeType: 'dark',
+    });
+
+    expect(tokenizer.getStyleConfig()).toEqual({
+      tokenizerStyles: 'a-k{color:red;}',
+      themeStyles: '--diffs-dark:#000;',
+      baseThemeType: 'dark',
+    });
+  });
+
   test('renders file content with highlighted inline tags', async () => {
     const tokenizer = new ArboriumTokenizer({
       loadModule: () =>
@@ -41,6 +55,36 @@ describe('ArboriumTokenizer', () => {
 
     const highlightedNode = firstLine.children[0] as HASTElement;
     expect(highlightedNode.tagName).toBe('a-k');
+  });
+
+  test('preserves parsed wrapper attributes and class/style', async () => {
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () =>
+        Promise.resolve(
+          createMockArboriumModule(
+            () =>
+              '<a-k class="kw one" style="font-weight:600" data-token="outer" disabled>const</a-k>'
+          )
+        ),
+    });
+
+    const result = await tokenizer.renderFile({
+      file: {
+        name: 'example.ts',
+        contents: 'const value = 1;\n',
+      },
+      options: {
+        theme: 'pierre-dark',
+        tokenizeMaxLineLength: 1000,
+      },
+    });
+
+    const firstLine = result.code[0] as HASTElement;
+    const highlightedNode = firstLine.children[0] as HASTElement;
+    expect(highlightedNode.properties.className).toEqual(['kw', 'one']);
+    expect(highlightedNode.properties.style).toBe('font-weight:600');
+    expect(highlightedNode.properties['data-token']).toBe('outer');
+    expect(highlightedNode.properties.disabled).toBe(true);
   });
 
   test('passes configured tokenizer styles through themed results', async () => {
@@ -115,6 +159,120 @@ describe('ArboriumTokenizer', () => {
     const textNode = firstLine.children[0];
     expect(textNode.type).toBe('text');
     expect('value' in textNode ? textNode.value : '').toContain('const value');
+  });
+
+  test('reuses cached grammar across preload and render', async () => {
+    let loadGrammarCalls = 0;
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () =>
+        Promise.resolve({
+          loadGrammar() {
+            loadGrammarCalls++;
+            return Promise.resolve({
+              highlight(source: string) {
+                return source;
+              },
+            });
+          },
+        }),
+    });
+
+    await tokenizer.preload({ langs: ['typescript'] });
+    await tokenizer.preload({ langs: ['typescript'] });
+    await tokenizer.renderFile({
+      file: {
+        name: 'example.ts',
+        contents: 'const value = 1;\n',
+      },
+      options: {
+        theme: 'pierre-dark',
+        tokenizeMaxLineLength: 1000,
+      },
+    });
+
+    expect(loadGrammarCalls).toBe(1);
+  });
+
+  test('throws when fallbackToPlainText is disabled and arborium loading fails', async () => {
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () => Promise.reject(new Error('missing arborium')),
+      fallbackToPlainText: false,
+    });
+
+    let thrown: unknown;
+    try {
+      await tokenizer.renderFile({
+        file: {
+          name: 'example.ts',
+          contents: 'const value = 1;\n',
+        },
+        options: {
+          theme: 'pierre-dark',
+          tokenizeMaxLineLength: 1000,
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('missing arborium');
+  });
+
+  test('throws on diff rendering when fallbackToPlainText is disabled', async () => {
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () => Promise.reject(new Error('missing arborium')),
+      fallbackToPlainText: false,
+    });
+    const diff = parseDiffFromFile(
+      { name: 'a.ts', contents: 'const a = 1;\n' },
+      { name: 'a.ts', contents: 'const a = 2;\n' }
+    );
+
+    let thrown: unknown;
+    try {
+      await tokenizer.renderDiff({
+        diff,
+        options: {
+          theme: 'pierre-dark',
+          tokenizeMaxLineLength: 1000,
+          lineDiffType: 'word-alt',
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('missing arborium');
+  });
+
+  test('decodes html entities from Arborium output', async () => {
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () =>
+        Promise.resolve(
+          createMockArboriumModule(
+            () => '<a-s>&amp;&lt;&gt;&quot;&#39;&#x27;</a-s>'
+          )
+        ),
+    });
+
+    const result = await tokenizer.renderFile({
+      file: {
+        name: 'example.ts',
+        contents: 'const value = 1;\n',
+      },
+      options: {
+        theme: 'pierre-dark',
+        tokenizeMaxLineLength: 1000,
+      },
+    });
+
+    const firstLine = result.code[0] as HASTElement;
+    const highlightedNode = firstLine.children[0] as HASTElement;
+    const textNode = highlightedNode.children[0];
+    expect(textNode.type).toBe('text');
+    expect('value' in textNode ? textNode.value : '').toBe(`&<>"''`);
   });
 
   test('normalizes window global before loading arborium module', async () => {

@@ -4,7 +4,7 @@ import { createHighlighterCoreSync } from 'shiki/core';
 import { DEFAULT_THEMES } from '../constants';
 import { attachResolvedLanguages } from '../highlighter/languages/attachResolvedLanguages';
 import { attachResolvedThemes } from '../highlighter/themes/attachResolvedThemes';
-import { ArboriumTokenizer } from '../tokenizers/arboriumTokenizer';
+import { ArboriumTokenizer } from '../tokenizers/arborium';
 import type {
   DiffsHighlighter,
   FileContents,
