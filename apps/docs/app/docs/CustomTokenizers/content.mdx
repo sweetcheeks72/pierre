@@ -1,0 +1,40 @@
+## Custom Tokenizers
+
+By default, `@pierre/diffs` uses Shiki. If you want to swap in another
+tokenizer (for example Arborium), you can pass a tokenizer instance through
+`options.tokenizer`.
+
+<Notice icon={<IconInfoFill />}>
+  Arborium is not bundled with `@pierre/diffs`. Install it in your app:
+  <code>bun add @arborium/arborium</code>
+</Notice>
+
+### React
+
+Create an `ArboriumTokenizer` once (for example with `useMemo`) and pass it to
+`MultiFileDiff`/`FileDiff`/`File` options.
+
+<DocsCodeExample {...reactArboriumTokenizer} />
+
+### Vanilla JavaScript
+
+For vanilla rendering, instantiate `ArboriumTokenizer` and pass it to
+`DiffHunksRenderer` or `FileRenderer`.
+
+<DocsCodeExample {...vanillaArboriumTokenizer} />
+
+### Worker Pool
+
+When using Worker Pool, configure the pool tokenizer via
+`highlighterOptions.tokenizer`.
+
+<DocsCodeExample {...workerPoolArboriumTokenizer} />
+
+### Notes
+
+- Main-thread + SSR custom tokenizer usage works immediately through
+  `options.tokenizer`.
+- For Worker Pool, use `highlighterOptions.tokenizer` so worker runtime and
+  component behavior stay aligned.
+- `FileStream` supports both Shiki and Arborium tokenizers. Other custom
+  tokenizers still need a registered stream adapter.

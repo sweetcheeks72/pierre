@@ -7,6 +7,11 @@ import {
   PARSE_DIFF_FROM_FILE_EXAMPLE,
   PARSE_PATCH_FILES_EXAMPLE,
 } from './CoreTypes/constants';
+import {
+  CUSTOM_TOKENIZER_REACT,
+  CUSTOM_TOKENIZER_VANILLA,
+  CUSTOM_TOKENIZER_WORKER_POOL,
+} from './CustomTokenizers/constants';
 import { DocsLayout } from './DocsLayout';
 import { HeadingAnchors } from './HeadingAnchors';
 import {
@@ -108,6 +113,7 @@ export default function DocsPage() {
           <ReactAPISection />
           <VanillaAPISection />
           <VirtualizationSection />
+          <CustomTokenizersSection />
           <UtilitiesSection />
           <StylingSection />
           <ThemingSection />
@@ -275,6 +281,27 @@ async function VirtualizationSection() {
       reactVirtualizerBasic,
       reactVirtualizerConfig,
       vanillaVirtualizedFileDiff,
+    },
+  });
+  return <ProseWrapper>{content}</ProseWrapper>;
+}
+
+async function CustomTokenizersSection() {
+  const [
+    reactArboriumTokenizer,
+    vanillaArboriumTokenizer,
+    workerPoolArboriumTokenizer,
+  ] = await Promise.all([
+    preloadFile(CUSTOM_TOKENIZER_REACT),
+    preloadFile(CUSTOM_TOKENIZER_VANILLA),
+    preloadFile(CUSTOM_TOKENIZER_WORKER_POOL),
+  ]);
+  const content = await renderMDX({
+    filePath: 'docs/CustomTokenizers/content.mdx',
+    scope: {
+      reactArboriumTokenizer,
+      vanillaArboriumTokenizer,
+      workerPoolArboriumTokenizer,
     },
   });
   return <ProseWrapper>{content}</ProseWrapper>;

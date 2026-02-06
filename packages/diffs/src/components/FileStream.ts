@@ -1,8 +1,14 @@
+import { ArboriumCodeToTokenTransformStream } from '../arborium-stream';
+import type { ArboriumStreamToken } from '../arborium-stream/types';
 import { DEFAULT_THEMES, DIFFS_TAG_NAME } from '../constants';
 import { getSharedHighlighter } from '../highlighter/shared_highlighter';
 import { queueRender } from '../managers/UniversalRenderingManager';
 import { CodeToTokenTransformStream, type RecallToken } from '../shiki-stream';
-import { getShikiTokenizer, isShikiTokenizer } from '../tokenizers';
+import {
+  getShikiTokenizer,
+  isArboriumTokenizer,
+  isShikiTokenizer,
+} from '../tokenizers';
 import type {
   BaseCodeOptions,
   DiffsHighlighter,
@@ -26,7 +32,9 @@ export interface FileStreamOptions extends BaseCodeOptions {
   onPostRender?(instance: FileStream): unknown;
 
   onStreamStart?(controller: WritableStreamDefaultController): unknown;
-  onStreamWrite?(token: ThemedToken | RecallToken): unknown;
+  onStreamWrite?(
+    token: ThemedToken | RecallToken | ArboriumStreamToken
+  ): unknown;
   onStreamClose?(): unknown;
   onStreamAbort?(reason: unknown): unknown;
 }
@@ -94,7 +102,10 @@ export class FileStream {
         `FileStream: tokenizer "${this.tokenizer.id}" does not support streaming.`
       );
     }
-    if (!isShikiTokenizer(this.tokenizer)) {
+    if (
+      !isShikiTokenizer(this.tokenizer) &&
+      !isArboriumTokenizer(this.tokenizer)
+    ) {
       throw new Error(
         `FileStream: tokenizer "${this.tokenizer.id}" advertises streaming but no stream adapter is registered yet.`
       );
@@ -111,12 +122,14 @@ export class FileStream {
     const [source, wrapper] = this.queuedSetupArgs;
     this.queuedSetupArgs = undefined;
 
-    const stream = source;
-
-    this.setupStream(stream, wrapper, this.highlighter);
+    if (isShikiTokenizer(this.tokenizer)) {
+      this.setupShikiStream(source, wrapper, this.highlighter);
+      return;
+    }
+    this.setupArboriumStream(source, wrapper, this.highlighter);
   }
 
-  private setupStream(
+  private setupShikiStream(
     stream: ReadableStream<string>,
     wrapper: HTMLElement,
     highlighter: DiffsHighlighter
@@ -205,8 +218,87 @@ export class FileStream {
       });
   }
 
-  private queuedTokens: (ThemedToken | RecallToken)[] = [];
-  private handleWrite = (token: ThemedToken | RecallToken) => {
+  private setupArboriumStream(
+    stream: ReadableStream<string>,
+    wrapper: HTMLElement,
+    highlighter: DiffsHighlighter
+  ): void {
+    const {
+      disableLineNumbers = false,
+      overflow = 'scroll',
+      theme = DEFAULT_THEMES,
+      themeType = 'system',
+      lang,
+    } = this.options;
+    const fileContainer = this.getOrCreateFileContainer();
+    if (fileContainer.parentElement == null) {
+      wrapper.appendChild(fileContainer);
+    }
+    this.pre ??= document.createElement('pre');
+    if (this.pre.parentElement == null) {
+      fileContainer.shadowRoot?.appendChild(this.pre);
+    }
+    const themeStyles = getHighlighterThemeStyles({ theme, highlighter });
+    const baseThemeType =
+      typeof theme === 'string' ? highlighter.getTheme(theme).type : undefined;
+    const pre = setPreNodeProperties(this.pre, {
+      type: 'file',
+      diffIndicators: 'none',
+      disableBackground: true,
+      disableLineNumbers,
+      overflow,
+      split: false,
+      themeType: baseThemeType ?? themeType,
+      themeStyles,
+      totalLines: 0,
+    });
+    pre.innerHTML = '';
+
+    this.pre = pre;
+    this.code = getOrCreateCodeNode({ code: this.code, pre });
+    this.gutterElement = undefined;
+    this.contentElement = undefined;
+    this.currentRowCount = 0;
+    this.currentLineElement = undefined;
+    this.currentLineIndex = this.options.startingLineIndex ?? 1;
+    this.abortController?.abort();
+    this.abortController = new AbortController();
+    const { onStreamStart, onStreamClose, onStreamAbort } = this.options;
+    this.stream = stream;
+    this.stream
+      .pipeThrough(
+        new ArboriumCodeToTokenTransformStream({
+          lang,
+          fallbackToPlainText: true,
+        })
+      )
+      .pipeTo(
+        new WritableStream({
+          start(controller) {
+            onStreamStart?.(controller);
+          },
+          close() {
+            onStreamClose?.();
+          },
+          abort(reason) {
+            onStreamAbort?.(reason);
+          },
+          write: this.handleWrite,
+        }),
+        { signal: this.abortController.signal }
+      )
+      .catch((error) => {
+        if (error.name !== 'AbortError') {
+          console.error('FileStream pipe error:', error);
+        }
+      });
+  }
+
+  private queuedTokens: (ThemedToken | RecallToken | ArboriumStreamToken)[] =
+    [];
+  private handleWrite = (
+    token: ThemedToken | RecallToken | ArboriumStreamToken
+  ) => {
     // If we've recalled tokens we haven't rendered yet, we can just yeet them
     // and never apply them
     if ('recall' in token && this.queuedTokens.length >= token.recall) {

@@ -50,7 +50,7 @@ export interface ArboriumTokenizerOptions {
 const ARBORIUM_TOKENIZER_CAPABILITIES: DiffsTokenizerCapabilities =
   Object.freeze({
     supportsWorkers: true,
-    supportsStreaming: false,
+    supportsStreaming: true,
     supportsDecorations: false,
     supportsDualTheme: false,
   });
@@ -460,4 +460,8 @@ export class ArboriumTokenizer implements DiffsTokenizer {
     this.modulePromise ??= this.loadModule();
     return this.modulePromise;
   }
+}
+
+export function isArboriumTokenizer(tokenizer: DiffsTokenizer): boolean {
+  return tokenizer.id === 'arborium';
 }
