@@ -1,4 +1,4 @@
-@layer base, theme, unsafe;
+@layer base, theme, tokenizer, unsafe;
 
 @layer base {
   :host {

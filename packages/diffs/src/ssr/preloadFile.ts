@@ -2,6 +2,7 @@ import type { FileOptions } from '../components/File';
 import { FileRenderer } from '../renderers/FileRenderer';
 import type { FileContents, LineAnnotation } from '../types';
 import { createStyleElement } from '../utils/createStyleElement';
+import { createTokenizerStyleElement } from '../utils/createTokenizerStyleElement';
 import { renderHTML } from './renderHTML';
 
 export type PreloadFileOptions<LAnnotation> = {
@@ -32,6 +33,9 @@ export async function preloadFile<LAnnotation = undefined>({
   const fileResult = await fileRenderer.asyncRender(file);
 
   const children = [createStyleElement(fileResult.css, true)];
+  if (fileResult.tokenizerStyles !== '') {
+    children.push(createTokenizerStyleElement(fileResult.tokenizerStyles));
+  }
 
   if (options?.unsafeCSS != null) {
     children.push(createStyleElement(options.unsafeCSS));

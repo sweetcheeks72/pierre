@@ -39,6 +39,7 @@ describe('custom tokenizer support', () => {
         return {
           code: lines.map((line, index) => createLineNode(line, index)),
           themeStyles: '',
+          tokenizerStyles: '',
           baseThemeType: undefined,
         };
       },
@@ -82,6 +83,7 @@ describe('custom tokenizer support', () => {
             ),
           },
           themeStyles: '',
+          tokenizerStyles: '',
           baseThemeType: undefined,
         };
       },

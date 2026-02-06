@@ -67,6 +67,8 @@ export * from './utils/createRowNodes';
 export * from './utils/createSeparator';
 export * from './utils/createSpanNodeFromToken';
 export * from './utils/createStyleElement';
+export * from './utils/createTokenizerCSSStyleNode';
+export * from './utils/createTokenizerStyleElement';
 export * from './utils/createTransformerWithState';
 export * from './utils/createUnsafeCSSStyleNode';
 export * from './utils/createWindowFromScrollPosition';

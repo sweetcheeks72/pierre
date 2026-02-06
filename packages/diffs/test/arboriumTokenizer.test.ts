@@ -35,9 +35,31 @@ describe('ArboriumTokenizer', () => {
     const firstLine = result.code[0] as HASTElement;
     expect(firstLine.tagName).toBe('div');
     expect(firstLine.properties['data-line-type']).toBe('context');
+    expect(result.tokenizerStyles).toBe('');
 
     const highlightedNode = firstLine.children[0] as HASTElement;
     expect(highlightedNode.tagName).toBe('a-k');
+  });
+
+  test('passes configured tokenizer styles through themed results', async () => {
+    const tokenizer = new ArboriumTokenizer({
+      tokenizerStyles: 'a-k{color:red;}',
+      loadModule: async () =>
+        createMockArboriumModule((source) => `<a-k>${source}</a-k>`),
+    });
+
+    const result = await tokenizer.renderFile({
+      file: {
+        name: 'example.ts',
+        contents: 'const value = 1;\n',
+      },
+      options: {
+        theme: 'pierre-dark',
+        tokenizeMaxLineLength: 1000,
+      },
+    });
+
+    expect(result.tokenizerStyles).toBe('a-k{color:red;}');
   });
 
   test('renders diff additions/deletions using Arborium output', async () => {

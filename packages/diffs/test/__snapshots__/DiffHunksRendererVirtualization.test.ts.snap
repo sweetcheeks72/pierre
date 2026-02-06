@@ -260,6 +260,7 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.2: Part
   },
   "rowCount": 549,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": [
     {
@@ -29454,6 +29455,7 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.3: Part
   },
   "rowCount": 544,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": [
     {
@@ -58413,6 +58415,7 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.4: Part
   },
   "rowCount": 549,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": [
     {
@@ -87614,6 +87617,7 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.5: Wind
   },
   "rowCount": 51,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": [
     {
@@ -90389,6 +90393,7 @@ exports[`DiffHunksRenderer - Virtualization correct lines rendered 6.1: Rendered
   },
   "rowCount": 10,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": [
     {
@@ -91630,6 +91635,7 @@ exports[`DiffHunksRenderer - Virtualization correct lines rendered 6.2: Rendered
   },
   "rowCount": 10,
   "themeStyles": "--diffs-dark:#fbfbfb;--diffs-dark-bg:#070707;--diffs-dark-addition-color:#00cab1;--diffs-dark-deletion-color:#ff2e3f;--diffs-dark-modified-color:#009fff;--diffs-light:#070707;--diffs-light-bg:#ffffff;--diffs-light-addition-color:#00cab1;--diffs-light-deletion-color:#ff2e3f;--diffs-light-modified-color:#009fff;",
+  "tokenizerStyles": "",
   "totalLines": 711,
   "unifiedContentAST": undefined,
   "unifiedGutterAST": undefined,

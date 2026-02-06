@@ -34,7 +34,13 @@ bun i @pierre/diffs
 ```ts
 import { ArboriumTokenizer, FileRenderer } from '@pierre/diffs';
 
-const tokenizer = new ArboriumTokenizer();
+const tokenizer = new ArboriumTokenizer({
+  // Arborium emits custom tags like <a-b>. Provide tokenizer CSS so those
+  // tags can be styled in both SSR and live DOM rendering paths.
+  tokenizerStyles: `
+    a-b { color: var(--my-token-color); }
+  `,
+});
 const renderer = new FileRenderer({ tokenizer });
 ```
 

@@ -5,6 +5,7 @@ import {
   DEFAULT_THEMES,
   DIFFS_TAG_NAME,
   HEADER_METADATA_SLOT_ID,
+  TOKENIZER_CSS_ATTRIBUTE,
   UNSAFE_CSS_ATTRIBUTE,
 } from '../constants';
 import {
@@ -48,8 +49,9 @@ import { arePrePropertiesEqual } from '../utils/arePrePropertiesEqual';
 import { areRenderRangesEqual } from '../utils/areRenderRangesEqual';
 import { createAnnotationWrapperNode } from '../utils/createAnnotationWrapperNode';
 import { createHoverContentNode } from '../utils/createHoverContentNode';
+import { createTokenizerCSSStyleNode } from '../utils/createTokenizerCSSStyleNode';
 import { createUnsafeCSSStyleNode } from '../utils/createUnsafeCSSStyleNode';
-import { wrapUnsafeCSS } from '../utils/cssWrappers';
+import { wrapTokenizerCSS, wrapUnsafeCSS } from '../utils/cssWrappers';
 import { getLineAnnotationName } from '../utils/getLineAnnotationName';
 import { getOrCreateCodeNode } from '../utils/getOrCreateCodeNode';
 import { parseDiffFromFile } from '../utils/parseDiffFromFile';
@@ -157,6 +159,7 @@ export class FileDiff<LAnnotation = undefined> {
   protected bufferBefore: HTMLElement | undefined;
   protected bufferAfter: HTMLElement | undefined;
   protected unsafeCSSStyle: HTMLStyleElement | undefined;
+  protected tokenizerCSSStyle: HTMLStyleElement | undefined;
   protected hoverContent: HTMLElement | undefined;
 
   protected headerElement: HTMLElement | undefined;
@@ -433,6 +436,7 @@ export class FileDiff<LAnnotation = undefined> {
     this.errorWrapper = undefined;
     this.spriteSVG = undefined;
     this.lastRowCount = undefined;
+    this.tokenizerCSSStyle = undefined;
 
     if (recycle) {
       this.hunksRenderer.recycle();
@@ -495,6 +499,13 @@ export class FileDiff<LAnnotation = undefined> {
         element.hasAttribute(UNSAFE_CSS_ATTRIBUTE)
       ) {
         this.unsafeCSSStyle = element;
+        continue;
+      }
+      if (
+        element instanceof HTMLStyleElement &&
+        element.hasAttribute(TOKENIZER_CSS_ATTRIBUTE)
+      ) {
+        this.tokenizerCSSStyle = element;
         continue;
       }
     }
@@ -689,6 +700,7 @@ export class FileDiff<LAnnotation = undefined> {
         if (hunksResult.headerElement != null) {
           this.applyHeaderToDOM(hunksResult.headerElement, fileContainer);
         }
+        this.injectTokenizerCSS(hunksResult.tokenizerStyles);
         if (
           hunksResult.additionsContentAST != null ||
           hunksResult.deletionsContentAST != null ||
@@ -766,6 +778,7 @@ export class FileDiff<LAnnotation = undefined> {
     this.pre?.remove();
     this.spriteSVG?.remove();
     this.unsafeCSSStyle?.remove();
+    this.tokenizerCSSStyle?.remove();
 
     this.bufferAfter = undefined;
     this.bufferBefore = undefined;
@@ -778,6 +791,7 @@ export class FileDiff<LAnnotation = undefined> {
     this.pre = undefined;
     this.spriteSVG = undefined;
     this.unsafeCSSStyle = undefined;
+    this.tokenizerCSSStyle = undefined;
 
     this.lastRenderedHeaderHTML = undefined;
     this.lastRowCount = undefined;
@@ -1022,6 +1036,22 @@ export class FileDiff<LAnnotation = undefined> {
     }
     // Wrap in @layer unsafe to match SSR behavior
     this.unsafeCSSStyle.innerText = wrapUnsafeCSS(unsafeCSS);
+  }
+
+  private injectTokenizerCSS(tokenizerCSS: string): void {
+    if (this.fileContainer?.shadowRoot == null) {
+      return;
+    }
+    if (tokenizerCSS === '') {
+      this.tokenizerCSSStyle?.remove();
+      this.tokenizerCSSStyle = undefined;
+      return;
+    }
+    if (this.tokenizerCSSStyle == null) {
+      this.tokenizerCSSStyle = createTokenizerCSSStyleNode();
+      this.fileContainer.shadowRoot.appendChild(this.tokenizerCSSStyle);
+    }
+    this.tokenizerCSSStyle.innerText = wrapTokenizerCSS(tokenizerCSS);
   }
 
   private applyHunksToDOM(

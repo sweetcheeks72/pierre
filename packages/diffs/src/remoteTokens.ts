@@ -42,6 +42,10 @@ export interface RemoteThemeMetadata {
    */
   themeStyles?: string;
   /**
+   * Optional tokenizer-scoped CSS (for example custom tag selectors).
+   */
+  tokenizerStyles?: string;
+  /**
    * Optional base theme mode used by pre/header nodes.
    */
   baseThemeType?: Exclude<ThemeTypes, 'system'>;

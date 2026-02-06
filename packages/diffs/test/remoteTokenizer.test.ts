@@ -34,6 +34,7 @@ function createFallbackTokenizer(themeStyles = 'fallback'): {
           createLineNode(line, lineIndex, 'context')
         ),
         themeStyles,
+        tokenizerStyles: '',
         baseThemeType: undefined,
       };
     },
@@ -49,6 +50,7 @@ function createFallbackTokenizer(themeStyles = 'fallback'): {
           ),
         },
         themeStyles,
+        tokenizerStyles: '',
         baseThemeType: undefined,
       };
     },
@@ -110,7 +112,11 @@ describe('RemoteTokenizer', () => {
             sequence: 0,
             kind: 'file' as const,
             source: { provider: 'mock', resourceId: 'a.ts' },
-            theme: { themeStyles: '--mock:1;', baseThemeType: 'dark' as const },
+            theme: {
+              themeStyles: '--mock:1;',
+              tokenizerStyles: 'a-b{color:red;}',
+              baseThemeType: 'dark' as const,
+            },
             lines: [{ lineIndex: 0, tokens: [{ content: 'const x = 1;\n' }] }],
           },
           // Duplicate sequence should be ignored.
@@ -159,6 +165,7 @@ describe('RemoteTokenizer', () => {
 
     expect(calls.file).toBe(0);
     expect(result.themeStyles).toBe('--mock:1;');
+    expect(result.tokenizerStyles).toBe('a-b{color:red;}');
     expect(result.baseThemeType).toBe('dark');
     expect(result.code.length).toBe(2);
 

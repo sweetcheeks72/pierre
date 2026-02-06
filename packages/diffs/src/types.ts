@@ -519,6 +519,7 @@ export type ExpansionDirections = 'up' | 'down' | 'both';
 export interface ThemedFileResult {
   code: ElementContent[];
   themeStyles: string;
+  tokenizerStyles: string;
   baseThemeType: 'light' | 'dark' | undefined;
 }
 
@@ -530,6 +531,7 @@ export interface RenderDiffFilesResult {
 export interface ThemedDiffResult {
   code: RenderDiffFilesResult;
   themeStyles: string;
+  tokenizerStyles: string;
   baseThemeType: 'light' | 'dark' | undefined;
 }
 

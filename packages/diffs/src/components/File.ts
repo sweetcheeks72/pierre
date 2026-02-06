@@ -5,6 +5,7 @@ import {
   DEFAULT_THEMES,
   DIFFS_TAG_NAME,
   HEADER_METADATA_SLOT_ID,
+  TOKENIZER_CSS_ATTRIBUTE,
   UNSAFE_CSS_ATTRIBUTE,
 } from '../constants';
 import {
@@ -37,8 +38,9 @@ import { arePrePropertiesEqual } from '../utils/arePrePropertiesEqual';
 import { areRenderRangesEqual } from '../utils/areRenderRangesEqual';
 import { createAnnotationWrapperNode } from '../utils/createAnnotationWrapperNode';
 import { createHoverContentNode } from '../utils/createHoverContentNode';
+import { createTokenizerCSSStyleNode } from '../utils/createTokenizerCSSStyleNode';
 import { createUnsafeCSSStyleNode } from '../utils/createUnsafeCSSStyleNode';
-import { wrapUnsafeCSS } from '../utils/cssWrappers';
+import { wrapTokenizerCSS, wrapUnsafeCSS } from '../utils/cssWrappers';
 import { getLineAnnotationName } from '../utils/getLineAnnotationName';
 import { getOrCreateCodeNode } from '../utils/getOrCreateCodeNode';
 import { prerenderHTMLIfNecessary } from '../utils/prerenderHTMLIfNecessary';
@@ -110,6 +112,7 @@ export class File<LAnnotation = undefined> {
   protected bufferBefore: HTMLElement | undefined;
   protected bufferAfter: HTMLElement | undefined;
   protected unsafeCSSStyle: HTMLStyleElement | undefined;
+  protected tokenizerCSSStyle: HTMLStyleElement | undefined;
   protected hoverContent: HTMLElement | undefined;
   protected errorWrapper: HTMLElement | undefined;
   protected placeHolder: HTMLElement | undefined;
@@ -250,6 +253,7 @@ export class File<LAnnotation = undefined> {
     this.lastRenderedHeaderHTML = undefined;
     this.errorWrapper = undefined;
     this.unsafeCSSStyle = undefined;
+    this.tokenizerCSSStyle = undefined;
     this.placeHolder = undefined;
   }
 
@@ -276,6 +280,13 @@ export class File<LAnnotation = undefined> {
         element.hasAttribute(UNSAFE_CSS_ATTRIBUTE)
       ) {
         this.unsafeCSSStyle = element;
+        continue;
+      }
+      if (
+        element instanceof HTMLStyleElement &&
+        element.hasAttribute(TOKENIZER_CSS_ATTRIBUTE)
+      ) {
+        this.tokenizerCSSStyle = element;
         continue;
       }
       if ('diffsHeader' in element.dataset) {
@@ -451,6 +462,7 @@ export class File<LAnnotation = undefined> {
     this.pre?.remove();
     this.spriteSVG?.remove();
     this.unsafeCSSStyle?.remove();
+    this.tokenizerCSSStyle?.remove();
 
     this.bufferAfter = undefined;
     this.bufferBefore = undefined;
@@ -461,6 +473,7 @@ export class File<LAnnotation = undefined> {
     this.pre = undefined;
     this.spriteSVG = undefined;
     this.unsafeCSSStyle = undefined;
+    this.tokenizerCSSStyle = undefined;
 
     this.lastRenderedHeaderHTML = undefined;
     this.lastRowCount = undefined;
@@ -551,9 +564,26 @@ export class File<LAnnotation = undefined> {
     this.unsafeCSSStyle.innerText = wrapUnsafeCSS(unsafeCSS);
   }
 
+  private injectTokenizerCSS(tokenizerCSS: string): void {
+    if (this.fileContainer?.shadowRoot == null) {
+      return;
+    }
+    if (tokenizerCSS === '') {
+      this.tokenizerCSSStyle?.remove();
+      this.tokenizerCSSStyle = undefined;
+      return;
+    }
+    if (this.tokenizerCSSStyle == null) {
+      this.tokenizerCSSStyle = createTokenizerCSSStyleNode();
+      this.fileContainer.shadowRoot.appendChild(this.tokenizerCSSStyle);
+    }
+    this.tokenizerCSSStyle.innerText = wrapTokenizerCSS(tokenizerCSS);
+  }
+
   private applyFullRender(result: FileRenderResult, pre: HTMLPreElement): void {
     this.cleanupErrorWrapper();
     this.applyPreNodeAttributes(pre, result);
+    this.injectTokenizerCSS(result.tokenizerStyles);
     this.code = getOrCreateCodeNode({ code: this.code });
     this.code.innerHTML = this.fileRenderer.renderPartialHTML(
       this.fileRenderer.renderCodeAST(result)

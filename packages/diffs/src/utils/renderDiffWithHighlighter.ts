@@ -243,7 +243,7 @@ export function renderDiffWithHighlighter(
     }
   }
 
-  return { code, themeStyles, baseThemeType };
+  return { code, themeStyles, tokenizerStyles: '', baseThemeType };
 }
 
 interface ProcessLineDiffProps {

@@ -6,6 +6,7 @@ import type {
   FileDiffMetadata,
 } from '../types';
 import { createStyleElement } from '../utils/createStyleElement';
+import { createTokenizerStyleElement } from '../utils/createTokenizerStyleElement';
 import { getSingularPatch } from '../utils/getSingularPatch';
 import { parseDiffFromFile } from '../utils/parseDiffFromFile';
 import { renderHTML } from './renderHTML';
@@ -49,6 +50,9 @@ export async function preloadDiffHTML<LAnnotation = undefined>({
   const hunkResult = await diffHunksRenderer.asyncRender(fileDiff);
 
   const children = [createStyleElement(hunkResult.css, true)];
+  if (hunkResult.tokenizerStyles !== '') {
+    children.push(createTokenizerStyleElement(hunkResult.tokenizerStyles));
+  }
 
   if (options?.unsafeCSS != null) {
     children.push(createStyleElement(options.unsafeCSS));

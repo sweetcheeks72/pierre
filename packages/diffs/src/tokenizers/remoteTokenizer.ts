@@ -36,6 +36,7 @@ const REMOTE_TOKENIZER_CAPABILITIES: DiffsTokenizerCapabilities = Object.freeze(
 interface RemoteCollectResult<TFrame> {
   frames: TFrame[];
   themeStyles: string;
+  tokenizerStyles: string;
   baseThemeType: 'light' | 'dark' | undefined;
 }
 
@@ -85,11 +86,11 @@ export class RemoteTokenizer implements DiffsTokenizer {
           renderOptions,
         };
         const stream = await this.transport.streamFileTokens(request);
-        const { frames, themeStyles, baseThemeType } =
+        const { frames, themeStyles, tokenizerStyles, baseThemeType } =
           await this.collectOrderedFrames(stream, 'file');
         const expectedLines = splitFileContents(file.contents).length;
         const code = this.buildFileLines(frames, expectedLines);
-        return { code, themeStyles, baseThemeType };
+        return { code, themeStyles, tokenizerStyles, baseThemeType };
       },
       () => this.fallbackTokenizer.renderFile({ file, options, renderOptions })
     );
@@ -108,13 +109,13 @@ export class RemoteTokenizer implements DiffsTokenizer {
           renderOptions,
         };
         const stream = await this.transport.streamDiffTokens(request);
-        const { frames, themeStyles, baseThemeType } =
+        const { frames, themeStyles, tokenizerStyles, baseThemeType } =
           await this.collectOrderedFrames(stream, 'diff');
         const code = this.buildDiffLines(frames, {
           additions: diff.additionLines.length,
           deletions: diff.deletionLines.length,
         });
-        return { code, themeStyles, baseThemeType };
+        return { code, themeStyles, tokenizerStyles, baseThemeType };
       },
       () => this.fallbackTokenizer.renderDiff({ diff, options, renderOptions })
     );
@@ -159,6 +160,7 @@ export class RemoteTokenizer implements DiffsTokenizer {
     let done = false;
     let streamId: string | undefined;
     let themeStyles = '';
+    let tokenizerStyles = '';
     let baseThemeType: 'light' | 'dark' | undefined;
 
     while (!done) {
@@ -189,9 +191,11 @@ export class RemoteTokenizer implements DiffsTokenizer {
         frame,
         frames,
         themeStyles,
+        tokenizerStyles,
         baseThemeType
       );
       themeStyles = processed.themeStyles;
+      tokenizerStyles = processed.tokenizerStyles;
       baseThemeType = processed.baseThemeType;
       done = processed.done;
       expectedSequence++;
@@ -206,9 +210,11 @@ export class RemoteTokenizer implements DiffsTokenizer {
           pending,
           frames,
           themeStyles,
+          tokenizerStyles,
           baseThemeType
         );
         themeStyles = pendingProcessed.themeStyles;
+        tokenizerStyles = pendingProcessed.tokenizerStyles;
         baseThemeType = pendingProcessed.baseThemeType;
         done = pendingProcessed.done;
         expectedSequence++;
@@ -220,7 +226,7 @@ export class RemoteTokenizer implements DiffsTokenizer {
         'RemoteTokenizer: remote stream ended before receiving a done frame.'
       );
     }
-    return { frames, themeStyles, baseThemeType };
+    return { frames, themeStyles, tokenizerStyles, baseThemeType };
   }
 
   private async withTimeout<T>(promise: Promise<T>): Promise<T> {
@@ -337,16 +343,19 @@ function processRemoteFrame<TFrame extends RemoteTokenFrameBase>(
   frame: TFrame,
   orderedFrames: TFrame[],
   themeStyles: string,
+  tokenizerStyles: string,
   baseThemeType: 'light' | 'dark' | undefined
 ): {
   done: boolean;
   themeStyles: string;
+  tokenizerStyles: string;
   baseThemeType: 'light' | 'dark' | undefined;
 } {
   orderedFrames.push(frame);
   return {
     done: frame.done === true,
     themeStyles: frame.theme?.themeStyles ?? themeStyles,
+    tokenizerStyles: frame.theme?.tokenizerStyles ?? tokenizerStyles,
     baseThemeType: frame.theme?.baseThemeType ?? baseThemeType,
   };
 }

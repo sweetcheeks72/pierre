@@ -41,6 +41,11 @@ export interface ArboriumTokenizerOptions {
    */
   baseThemeType?: 'light' | 'dark';
   /**
+   * Optional CSS rules for Arborium tag-based output (for example `<a-b>`).
+   * These rules are injected per-render by Pierre's renderer layer.
+   */
+  tokenizerStyles?: string;
+  /**
    * If true (default), rendering falls back to plain text whenever Arborium
    * grammar loading/highlighting fails.
    */
@@ -244,6 +249,7 @@ export class ArboriumTokenizer implements DiffsTokenizer {
   private readonly loadModule: ArboriumModuleLoader;
   private readonly fallbackToPlainText: boolean;
   private readonly themeStyles: string;
+  private readonly tokenizerStyles: string;
   private readonly baseThemeType: 'light' | 'dark' | undefined;
   private modulePromise: Promise<ArboriumModule> | undefined;
   private grammarCache = new Map<
@@ -255,6 +261,7 @@ export class ArboriumTokenizer implements DiffsTokenizer {
     this.loadModule = options.loadModule ?? loadDefaultArboriumModule;
     this.fallbackToPlainText = options.fallbackToPlainText ?? true;
     this.themeStyles = options.themeStyles ?? '';
+    this.tokenizerStyles = options.tokenizerStyles ?? '';
     this.baseThemeType = options.baseThemeType;
   }
 
@@ -308,6 +315,7 @@ export class ArboriumTokenizer implements DiffsTokenizer {
     return {
       code,
       themeStyles: this.themeStyles,
+      tokenizerStyles: this.tokenizerStyles,
       baseThemeType: this.baseThemeType,
     };
   }
@@ -347,6 +355,7 @@ export class ArboriumTokenizer implements DiffsTokenizer {
         additionLines,
       },
       themeStyles: this.themeStyles,
+      tokenizerStyles: this.tokenizerStyles,
       baseThemeType: this.baseThemeType,
     };
   }

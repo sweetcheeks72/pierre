@@ -102,7 +102,7 @@ export function renderFileWithHighlighter(
     code.push(...highlightedLines);
   }
 
-  return { code, themeStyles, baseThemeType };
+  return { code, themeStyles, tokenizerStyles: '', baseThemeType };
 }
 
 function extractWindowedFileContent(
