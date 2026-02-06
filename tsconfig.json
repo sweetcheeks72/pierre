@@ -3,6 +3,9 @@
   "files": [],
   "references": [
     {
+      "path": "apps/aborium-diff-demo/tsconfig.json"
+    },
+    {
       "path": "apps/demo/tsconfig.json"
     },
     {

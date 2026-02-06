@@ -18,6 +18,8 @@ import type {
   ThemeTypes,
 } from '../types';
 import { createSpanFromToken } from '../utils/createSpanNodeFromToken';
+import { createTokenizerCSSStyleNode } from '../utils/createTokenizerCSSStyleNode';
+import { wrapTokenizerCSS } from '../utils/cssWrappers';
 import { formatCSSVariablePrefix } from '../utils/formatCSSVariablePrefix';
 import { getHighlighterOptions } from '../utils/getHighlighterOptions';
 import { getHighlighterThemeStyles } from '../utils/getHighlighterThemeStyles';
@@ -51,6 +53,7 @@ export class FileStream {
   private fileContainer: HTMLElement | undefined;
   pre: HTMLPreElement | undefined;
   private code: HTMLElement | undefined;
+  private tokenizerCSSStyle: HTMLStyleElement | undefined;
   private gutterElement: HTMLElement | undefined;
   private contentElement: HTMLElement | undefined;
   private currentRowCount = 0;
@@ -151,6 +154,7 @@ export class FileStream {
     const themeStyles = getHighlighterThemeStyles({ theme, highlighter });
     const baseThemeType =
       typeof theme === 'string' ? highlighter.getTheme(theme).type : undefined;
+    this.injectTokenizerCSS('');
     const pre = setPreNodeProperties(this.pre, {
       type: 'file',
       diffIndicators: 'none',
@@ -239,8 +243,17 @@ export class FileStream {
       fileContainer.shadowRoot?.appendChild(this.pre);
     }
     const themeStyles = getHighlighterThemeStyles({ theme, highlighter });
+    const styleConfig = this.tokenizer.getStyleConfig?.();
     const baseThemeType =
-      typeof theme === 'string' ? highlighter.getTheme(theme).type : undefined;
+      styleConfig?.baseThemeType ??
+      (typeof theme === 'string'
+        ? highlighter.getTheme(theme).type
+        : undefined);
+    const streamThemeStyles =
+      styleConfig?.themeStyles != null && styleConfig.themeStyles !== ''
+        ? styleConfig.themeStyles
+        : themeStyles;
+    this.injectTokenizerCSS(styleConfig?.tokenizerStyles ?? '');
     const pre = setPreNodeProperties(this.pre, {
       type: 'file',
       diffIndicators: 'none',
@@ -249,7 +262,7 @@ export class FileStream {
       overflow,
       split: false,
       themeType: baseThemeType ?? themeType,
-      themeStyles,
+      themeStyles: streamThemeStyles,
       totalLines: 0,
     });
     pre.innerHTML = '';
@@ -422,5 +435,21 @@ export class FileStream {
     this.fileContainer =
       fileContainer ?? document.createElement(DIFFS_TAG_NAME);
     return this.fileContainer;
+  }
+
+  private injectTokenizerCSS(tokenizerCSS: string): void {
+    if (this.fileContainer?.shadowRoot == null) {
+      return;
+    }
+    if (tokenizerCSS === '') {
+      this.tokenizerCSSStyle?.remove();
+      this.tokenizerCSSStyle = undefined;
+      return;
+    }
+    if (this.tokenizerCSSStyle == null) {
+      this.tokenizerCSSStyle = createTokenizerCSSStyleNode();
+      this.fileContainer.shadowRoot.appendChild(this.tokenizerCSSStyle);
+    }
+    this.tokenizerCSSStyle.innerText = wrapTokenizerCSS(tokenizerCSS);
   }
 }

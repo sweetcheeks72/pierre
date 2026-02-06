@@ -535,6 +535,12 @@ export interface ThemedDiffResult {
   baseThemeType: 'light' | 'dark' | undefined;
 }
 
+export interface DiffsTokenizerStyleConfig {
+  themeStyles: string;
+  tokenizerStyles: string;
+  baseThemeType: 'light' | 'dark' | undefined;
+}
+
 export interface HunkExpansionRegion {
   fromStart: number;
   fromEnd: number;
@@ -609,6 +615,7 @@ export interface DiffsTokenizer {
   preload?(options?: DiffsTokenizerPreloadOptions): Awaitable<void>;
   renderFile(input: DiffsTokenizerRenderFileInput): Awaitable<ThemedFileResult>;
   renderDiff(input: DiffsTokenizerRenderDiffInput): Awaitable<ThemedDiffResult>;
+  getStyleConfig?(): DiffsTokenizerStyleConfig;
 }
 
 export interface RenderedFileASTCache {

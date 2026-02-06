@@ -6,6 +6,7 @@ import type {
   DiffsTokenizerPreloadOptions,
   DiffsTokenizerRenderDiffInput,
   DiffsTokenizerRenderFileInput,
+  DiffsTokenizerStyleConfig,
   FileDiffMetadata,
   LineTypes,
   SupportedLanguages,
@@ -231,6 +232,7 @@ function resolveDiffLineTypes(diff: FileDiffMetadata): {
 }
 
 async function loadDefaultArboriumModule(): Promise<ArboriumModule> {
+  ensureArboriumWindowGlobal();
   const moduleName = '@arborium/arborium';
   const imported = (await import(moduleName)) as Partial<ArboriumModule>;
   if (typeof imported.loadGrammar !== 'function') {
@@ -263,6 +265,14 @@ export class ArboriumTokenizer implements DiffsTokenizer {
     this.themeStyles = options.themeStyles ?? '';
     this.tokenizerStyles = options.tokenizerStyles ?? '';
     this.baseThemeType = options.baseThemeType;
+  }
+
+  getStyleConfig(): DiffsTokenizerStyleConfig {
+    return {
+      themeStyles: this.themeStyles,
+      tokenizerStyles: this.tokenizerStyles,
+      baseThemeType: this.baseThemeType,
+    };
   }
 
   async preload({
@@ -466,6 +476,7 @@ export class ArboriumTokenizer implements DiffsTokenizer {
   }
 
   private getModule(): Promise<ArboriumModule> {
+    ensureArboriumWindowGlobal();
     this.modulePromise ??= this.loadModule();
     return this.modulePromise;
   }
@@ -473,4 +484,9 @@ export class ArboriumTokenizer implements DiffsTokenizer {
 
 export function isArboriumTokenizer(tokenizer: DiffsTokenizer): boolean {
   return tokenizer.id === 'arborium';
+}
+
+function ensureArboriumWindowGlobal(): void {
+  const scope = globalThis as Record<string, unknown>;
+  scope.window ??= scope;
 }

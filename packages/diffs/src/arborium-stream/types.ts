@@ -4,6 +4,14 @@ export interface ArboriumStreamToken {
   content: string;
   className?: string[];
   style?: string;
+  wrappers?: ArboriumStreamTokenWrapper[];
+}
+
+export interface ArboriumStreamTokenWrapper {
+  tagName: string;
+  className?: string[];
+  style?: string;
+  attributes?: Record<string, string | boolean>;
 }
 
 interface ArboriumGrammar {

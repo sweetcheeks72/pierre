@@ -18,6 +18,8 @@ export function getOrCreateCodeNode({
       code.dataset[columnType] = '';
     }
     pre?.appendChild(code);
+  } else if (pre != null && code.parentNode !== pre) {
+    pre.appendChild(code);
   }
   if (rowSpan != null) {
     code.style.setProperty('grid-row', `span ${rowSpan}`);

@@ -3,6 +3,7 @@ import type {
   ArboriumCodeToTokenTransformStreamOptions,
   ArboriumStreamModule,
   ArboriumStreamToken,
+  ArboriumStreamTokenWrapper,
 } from './types';
 
 const NAMED_ENTITIES: Record<string, string> = {
@@ -16,6 +17,13 @@ const NAMED_ENTITIES: Record<string, string> = {
 interface TokenContext {
   className?: string[];
   style?: string;
+  wrappers?: ArboriumStreamTokenWrapper[];
+}
+
+interface ParsedAttributes {
+  className?: string[];
+  style?: string;
+  attributes?: Record<string, string | boolean>;
 }
 
 function decodeHtmlEntities(value: string): string {
@@ -42,23 +50,25 @@ function decodeHtmlEntities(value: string): string {
   );
 }
 
-function parseAttributes(rawAttributes: string): TokenContext {
+function parseAttributes(rawAttributes: string): ParsedAttributes {
   const attributePattern =
     /([^\s=/>]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
-  const context: TokenContext = {};
+  const parsedAttributes: ParsedAttributes = {};
   for (const match of rawAttributes.matchAll(attributePattern)) {
     const key = match[1];
     const value = decodeHtmlEntities(match[2] ?? match[3] ?? match[4] ?? '');
     if (key === 'class') {
       const className = value.split(/\s+/).filter(Boolean);
       if (className.length > 0) {
-        context.className = className;
+        parsedAttributes.className = className;
       }
     } else if (key === 'style' && value.trim() !== '') {
-      context.style = value;
+      parsedAttributes.style = value;
+    } else {
+      (parsedAttributes.attributes ??= {})[key] = value === '' ? true : value;
     }
   }
-  return context;
+  return parsedAttributes;
 }
 
 function parseHighlightedHtmlToTokens(html: string): ArboriumStreamToken[] {
@@ -87,16 +97,33 @@ function parseHighlightedHtmlToTokens(html: string): ArboriumStreamToken[] {
       const selfClosing = trimmed.endsWith('/');
       const body = selfClosing ? trimmed.slice(0, -1).trim() : trimmed;
       const firstSpaceIndex = body.indexOf(' ');
+      const rawTagName =
+        firstSpaceIndex === -1 ? body : body.slice(0, firstSpaceIndex);
+      const tagName = rawTagName.toLowerCase();
       const rawAttributes =
         firstSpaceIndex === -1 ? '' : body.slice(firstSpaceIndex + 1);
       const parent = stack[stack.length - 1];
       const attrs = parseAttributes(rawAttributes);
+      const wrapper: ArboriumStreamTokenWrapper = {
+        tagName,
+      };
+      if (attrs.className != null && attrs.className.length > 0) {
+        wrapper.className = attrs.className;
+      }
+      if (attrs.style != null && attrs.style.trim() !== '') {
+        wrapper.style = attrs.style;
+      }
+      if (attrs.attributes != null) {
+        wrapper.attributes = attrs.attributes;
+      }
       const merged: TokenContext = {
         className:
           parent.className != null || attrs.className != null
             ? [...(parent.className ?? []), ...(attrs.className ?? [])]
             : undefined,
         style: mergeStyles(parent.style, attrs.style),
+        wrappers:
+          parent.wrappers != null ? [...parent.wrappers, wrapper] : [wrapper],
       };
       if (!selfClosing) {
         stack.push(merged);
@@ -112,6 +139,7 @@ function parseHighlightedHtmlToTokens(html: string): ArboriumStreamToken[] {
       content,
       className: context.className,
       style: context.style,
+      wrappers: context.wrappers,
     });
   }
   return output;
@@ -141,6 +169,7 @@ function normalizeLanguage(
 }
 
 async function loadDefaultArboriumModule(): Promise<ArboriumStreamModule> {
+  ensureArboriumWindowGlobal();
   const moduleName = '@arborium/arborium';
   const imported = (await import(moduleName)) as Partial<ArboriumStreamModule>;
   if (typeof imported.loadGrammar !== 'function') {
@@ -181,6 +210,7 @@ export class ArboriumCodeToTokenTransformStream extends TransformStream<
       if (normalizedLang == null) {
         return undefined;
       }
+      ensureArboriumWindowGlobal();
       grammarPromise ??= loadModule()
         .then((module) => module.loadGrammar(normalizedLang))
         .catch((error) => {
@@ -237,4 +267,9 @@ export class ArboriumCodeToTokenTransformStream extends TransformStream<
 
     this.options = options;
   }
+}
+
+function ensureArboriumWindowGlobal(): void {
+  const scope = globalThis as Record<string, unknown>;
+  scope.window ??= scope;
 }

@@ -8,8 +8,8 @@ function createMockArboriumModule(
   highlight: (source: string) => string | Promise<string>
 ): ArboriumModule {
   return {
-    async loadGrammar() {
-      return { highlight };
+    loadGrammar() {
+      return Promise.resolve({ highlight });
     },
   };
 }
@@ -17,8 +17,10 @@ function createMockArboriumModule(
 describe('ArboriumTokenizer', () => {
   test('renders file content with highlighted inline tags', async () => {
     const tokenizer = new ArboriumTokenizer({
-      loadModule: async () =>
-        createMockArboriumModule((source) => `<a-k>${source}</a-k>`),
+      loadModule: () =>
+        Promise.resolve(
+          createMockArboriumModule((source) => `<a-k>${source}</a-k>`)
+        ),
     });
 
     const result = await tokenizer.renderFile({
@@ -44,8 +46,10 @@ describe('ArboriumTokenizer', () => {
   test('passes configured tokenizer styles through themed results', async () => {
     const tokenizer = new ArboriumTokenizer({
       tokenizerStyles: 'a-k{color:red;}',
-      loadModule: async () =>
-        createMockArboriumModule((source) => `<a-k>${source}</a-k>`),
+      loadModule: () =>
+        Promise.resolve(
+          createMockArboriumModule((source) => `<a-k>${source}</a-k>`)
+        ),
     });
 
     const result = await tokenizer.renderFile({
@@ -64,8 +68,10 @@ describe('ArboriumTokenizer', () => {
 
   test('renders diff additions/deletions using Arborium output', async () => {
     const tokenizer = new ArboriumTokenizer({
-      loadModule: async () =>
-        createMockArboriumModule((source) => `<span>${source}</span>`),
+      loadModule: () =>
+        Promise.resolve(
+          createMockArboriumModule((source) => `<span>${source}</span>`)
+        ),
     });
     const diff = parseDiffFromFile(
       { name: 'a.ts', contents: 'const a = 1;\n' },
@@ -90,9 +96,7 @@ describe('ArboriumTokenizer', () => {
 
   test('falls back to plain text when arborium loading fails', async () => {
     const tokenizer = new ArboriumTokenizer({
-      loadModule: async () => {
-        throw new Error('missing arborium');
-      },
+      loadModule: () => Promise.reject(new Error('missing arborium')),
       fallbackToPlainText: true,
     });
 
@@ -111,5 +115,42 @@ describe('ArboriumTokenizer', () => {
     const textNode = firstLine.children[0];
     expect(textNode.type).toBe('text');
     expect('value' in textNode ? textNode.value : '').toContain('const value');
+  });
+
+  test('normalizes window global before loading arborium module', async () => {
+    const scope = globalThis as Record<string, unknown>;
+    const hadWindow = 'window' in scope;
+    const previousWindow = scope.window;
+    scope.window = undefined;
+
+    let sawWindowAlias = false;
+    const tokenizer = new ArboriumTokenizer({
+      loadModule: () => {
+        sawWindowAlias = scope.window === globalThis;
+        return Promise.resolve(
+          createMockArboriumModule((source) => `<a-k>${source}</a-k>`)
+        );
+      },
+    });
+
+    try {
+      await tokenizer.renderFile({
+        file: {
+          name: 'example.ts',
+          contents: 'const value = 1;\n',
+        },
+        options: {
+          theme: 'pierre-dark',
+          tokenizeMaxLineLength: 1000,
+        },
+      });
+      expect(sawWindowAlias).toBe(true);
+    } finally {
+      if (hadWindow) {
+        scope.window = previousWindow;
+      } else {
+        delete scope.window;
+      }
+    }
   });
 });

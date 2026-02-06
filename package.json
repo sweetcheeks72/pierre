@@ -7,6 +7,7 @@
       "apps/*"
     ],
     "catalog": {
+      "@arborium/arborium": "2.12.4",
       "@arethetypeswrong/core": "0.18.2",
       "@babel/core": "7.28.4",
       "@headless-tree/core": "1.6.1",
@@ -107,6 +108,7 @@
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "prepare": "husky",
+    "aborium-demo:build": "(cd apps/aborium-diff-demo && bun run build)",
     "demo:build": "(cd apps/demo && bun run build)",
     "docs:build": "(cd apps/docs && bun run build)"
   },

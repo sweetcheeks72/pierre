@@ -64,6 +64,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
+    "@arborium/arborium": "catalog:",
     "@shikijs/core": "^3.0.0",
     "@shikijs/engine-javascript": "^3.0.0",
     "@shikijs/transformers": "^3.0.0",
