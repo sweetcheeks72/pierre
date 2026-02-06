@@ -88,7 +88,7 @@ export class FileRenderer<LAnnotation = undefined> {
   private computedLang: SupportedLanguages = 'text';
   private lineAnnotations: AnnotationLineMap<LAnnotation> = {};
   private lineCache: LineCache | undefined;
-  private warnedCustomTokenizerWithWorker = false;
+  private warnedTokenizerMismatchWithWorker = false;
 
   constructor(
     public options: FileRendererOptions = { theme: DEFAULT_THEMES },
@@ -504,18 +504,21 @@ export class FileRenderer<LAnnotation = undefined> {
   }
 
   private setTokenizer(options: FileRendererOptions): void {
-    let tokenizer = options.tokenizer ?? getShikiTokenizer();
+    const tokenizer = options.tokenizer ?? getShikiTokenizer();
+    const workerTokenizerType =
+      this.workerManager?.isWorkingPool() === true
+        ? this.workerManager.getTokenizerType()
+        : undefined;
     if (
-      this.workerManager?.isWorkingPool() === true &&
-      !isShikiTokenizer(tokenizer)
+      workerTokenizerType != null &&
+      options.tokenizer != null &&
+      options.tokenizer.id !== workerTokenizerType &&
+      !this.warnedTokenizerMismatchWithWorker
     ) {
-      if (!this.warnedCustomTokenizerWithWorker) {
-        this.warnedCustomTokenizerWithWorker = true;
-        console.warn(
-          'FileRenderer: custom tokenizers are not supported with WorkerPoolManager yet. Falling back to the default shiki tokenizer.'
-        );
-      }
-      tokenizer = getShikiTokenizer();
+      this.warnedTokenizerMismatchWithWorker = true;
+      console.warn(
+        `FileRenderer: received tokenizer "${options.tokenizer.id}" while WorkerPoolManager is configured for "${workerTokenizerType}". Worker rendering uses the pool tokenizer; local tokenizer is only used if workers are unavailable.`
+      );
     }
     const tokenizerChanged = this.tokenizer !== tokenizer;
     this.tokenizer = tokenizer;

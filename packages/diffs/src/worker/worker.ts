@@ -4,6 +4,7 @@ import { createHighlighterCoreSync } from 'shiki/core';
 import { DEFAULT_THEMES } from '../constants';
 import { attachResolvedLanguages } from '../highlighter/languages/attachResolvedLanguages';
 import { attachResolvedThemes } from '../highlighter/themes/attachResolvedThemes';
+import { ArboriumTokenizer } from '../tokenizers/arboriumTokenizer';
 import type {
   DiffsHighlighter,
   FileContents,
@@ -16,6 +17,8 @@ import type {
 import { renderDiffWithHighlighter } from '../utils/renderDiffWithHighlighter';
 import { renderFileWithHighlighter } from '../utils/renderFileWithHighlighter';
 import type {
+  ArboriumWorkerTokenizerBootstrapData,
+  ArboriumWorkerTokenizerRenderPayload,
   InitializeSuccessResponse,
   InitializeWorkerRequest,
   RenderDiffRequest,
@@ -37,19 +40,29 @@ interface WorkerTokenizerRuntime {
   initialize(props: {
     renderOptions: WorkerRenderingOptions;
     bootstrap?: unknown;
-  }): void;
+  }): Promise<void> | void;
   setRenderOptions(props: {
     renderOptions: WorkerRenderingOptions;
     bootstrap?: unknown;
-  }): void;
-  renderFile(props: { file: FileContents; payload?: unknown }): {
-    result: ThemedFileResult;
-    options: RenderFileOptions;
-  };
-  renderDiff(props: { diff: FileDiffMetadata; payload?: unknown }): {
-    result: ThemedDiffResult;
-    options: RenderDiffOptions;
-  };
+  }): Promise<void> | void;
+  renderFile(props: { file: FileContents; payload?: unknown }):
+    | {
+        result: ThemedFileResult;
+        options: RenderFileOptions;
+      }
+    | Promise<{
+        result: ThemedFileResult;
+        options: RenderFileOptions;
+      }>;
+  renderDiff(props: { diff: FileDiffMetadata; payload?: unknown }):
+    | {
+        result: ThemedDiffResult;
+        options: RenderDiffOptions;
+      }
+    | Promise<{
+        result: ThemedDiffResult;
+        options: RenderDiffOptions;
+      }>;
   dispose?(): void;
 }
 
@@ -141,6 +154,85 @@ class ShikiWorkerTokenizerRuntime implements WorkerTokenizerRuntime {
   }
 }
 
+class ArboriumWorkerTokenizerRuntime implements WorkerTokenizerRuntime {
+  readonly type: WorkerTokenizerType = 'arborium';
+
+  private tokenizer = new ArboriumTokenizer();
+  private renderOptions: WorkerRenderingOptions = {
+    theme: DEFAULT_THEMES,
+    tokenizeMaxLineLength: 1000,
+    lineDiffType: 'word-alt',
+    tokenizer: 'arborium',
+  };
+
+  async initialize({
+    renderOptions,
+    bootstrap,
+  }: {
+    renderOptions: WorkerRenderingOptions;
+    bootstrap?: unknown;
+  }): Promise<void> {
+    this.renderOptions = renderOptions;
+    const data = getArboriumBootstrapData(bootstrap);
+    if (data.preloadLanguages != null && data.preloadLanguages.length > 0) {
+      await this.tokenizer.preload({ langs: data.preloadLanguages });
+    }
+  }
+
+  async setRenderOptions({
+    renderOptions,
+    bootstrap,
+  }: {
+    renderOptions: WorkerRenderingOptions;
+    bootstrap?: unknown;
+  }): Promise<void> {
+    this.renderOptions = renderOptions;
+    const data = getArboriumBootstrapData(bootstrap);
+    if (data.preloadLanguages != null && data.preloadLanguages.length > 0) {
+      await this.tokenizer.preload({ langs: data.preloadLanguages });
+    }
+  }
+
+  async renderFile({
+    file,
+    payload,
+  }: {
+    file: FileContents;
+    payload?: unknown;
+  }): Promise<{ result: ThemedFileResult; options: RenderFileOptions }> {
+    const preloadLanguages = getArboriumRenderPayload(payload).preloadLanguages;
+    if (preloadLanguages != null && preloadLanguages.length > 0) {
+      await this.tokenizer.preload({ langs: preloadLanguages });
+    }
+    const options: RenderFileOptions = {
+      theme: this.renderOptions.theme,
+      tokenizeMaxLineLength: this.renderOptions.tokenizeMaxLineLength,
+    };
+    const result = await this.tokenizer.renderFile({ file, options });
+    return { result, options };
+  }
+
+  async renderDiff({
+    diff,
+    payload,
+  }: {
+    diff: FileDiffMetadata;
+    payload?: unknown;
+  }): Promise<{ result: ThemedDiffResult; options: RenderDiffOptions }> {
+    const preloadLanguages = getArboriumRenderPayload(payload).preloadLanguages;
+    if (preloadLanguages != null && preloadLanguages.length > 0) {
+      await this.tokenizer.preload({ langs: preloadLanguages });
+    }
+    const options: RenderDiffOptions = {
+      theme: this.renderOptions.theme,
+      tokenizeMaxLineLength: this.renderOptions.tokenizeMaxLineLength,
+      lineDiffType: this.renderOptions.lineDiffType,
+    };
+    const result = await this.tokenizer.renderDiff({ diff, options });
+    return { result, options };
+  }
+}
+
 function getShikiBootstrapData(
   bootstrap: unknown
 ): ShikiWorkerTokenizerBootstrapData {
@@ -159,12 +251,26 @@ function getShikiRenderPayload(
   return (payload ?? {}) as ShikiWorkerTokenizerRenderPayload;
 }
 
+function getArboriumBootstrapData(
+  bootstrap: unknown
+): ArboriumWorkerTokenizerBootstrapData {
+  return (bootstrap ?? {}) as ArboriumWorkerTokenizerBootstrapData;
+}
+
+function getArboriumRenderPayload(
+  payload: unknown
+): ArboriumWorkerTokenizerRenderPayload {
+  return (payload ?? {}) as ArboriumWorkerTokenizerRenderPayload;
+}
+
 function createTokenizerRuntime(
   type: WorkerTokenizerType
 ): WorkerTokenizerRuntime {
   switch (type) {
     case 'shiki':
       return new ShikiWorkerTokenizerRuntime();
+    case 'arborium':
+      return new ArboriumWorkerTokenizerRuntime();
     default:
       throw new Error(
         `WorkerTokenizer: unknown tokenizer runtime "${String(type)}"`
@@ -180,37 +286,40 @@ self.addEventListener('error', (event) => {
 
 self.addEventListener('message', (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
-
-  try {
-    switch (request.type) {
-      case 'initialize':
-        handleInitialize(request);
-        break;
-      case 'set-render-options':
-        handleSetRenderOptions(request);
-        break;
-      case 'file':
-        handleRenderFile(request);
-        break;
-      case 'diff':
-        handleRenderDiff(request);
-        break;
-      default:
-        throw new Error(
-          `Unknown request type: ${(request as WorkerRequest).type}`
-        );
+  requestQueue = requestQueue.then(async () => {
+    try {
+      switch (request.type) {
+        case 'initialize':
+          await handleInitialize(request);
+          break;
+        case 'set-render-options':
+          await handleSetRenderOptions(request);
+          break;
+        case 'file':
+          await handleRenderFile(request);
+          break;
+        case 'diff':
+          await handleRenderDiff(request);
+          break;
+        default:
+          throw new Error(
+            `Unknown request type: ${(request as WorkerRequest).type}`
+          );
+      }
+    } catch (error) {
+      console.error('Worker error:', error);
+      sendError(request.id, error);
     }
-  } catch (error) {
-    console.error('Worker error:', error);
-    sendError(request.id, error);
-  }
+  });
 });
 
-function handleInitialize({
+let requestQueue: Promise<void> = Promise.resolve();
+
+async function handleInitialize({
   id,
   renderOptions,
   tokenizerBootstrap,
-}: InitializeWorkerRequest): void {
+}: InitializeWorkerRequest): Promise<void> {
   if (
     tokenizerRuntime == null ||
     tokenizerRuntime.type !== tokenizerBootstrap.type
@@ -218,7 +327,7 @@ function handleInitialize({
     tokenizerRuntime?.dispose?.();
     tokenizerRuntime = createTokenizerRuntime(tokenizerBootstrap.type);
   }
-  tokenizerRuntime.initialize({
+  await tokenizerRuntime.initialize({
     renderOptions,
     bootstrap: tokenizerBootstrap.data,
   });
@@ -230,11 +339,11 @@ function handleInitialize({
   } satisfies InitializeSuccessResponse);
 }
 
-function handleSetRenderOptions({
+async function handleSetRenderOptions({
   id,
   renderOptions,
   tokenizerBootstrap,
-}: SetRenderOptionsWorkerRequest): void {
+}: SetRenderOptionsWorkerRequest): Promise<void> {
   if (
     tokenizerRuntime == null ||
     tokenizerRuntime.type !== tokenizerBootstrap.type
@@ -242,7 +351,7 @@ function handleSetRenderOptions({
     tokenizerRuntime?.dispose?.();
     tokenizerRuntime = createTokenizerRuntime(tokenizerBootstrap.type);
   }
-  tokenizerRuntime.setRenderOptions({
+  await tokenizerRuntime.setRenderOptions({
     renderOptions,
     bootstrap: tokenizerBootstrap.data,
   });
@@ -254,30 +363,30 @@ function handleSetRenderOptions({
   });
 }
 
-function handleRenderFile({
+async function handleRenderFile({
   id,
   file,
   tokenizerPayload,
-}: RenderFileRequest): void {
+}: RenderFileRequest): Promise<void> {
   if (tokenizerRuntime == null) {
     throw new Error('WorkerTokenizer: received file request before initialize');
   }
-  const { result, options } = tokenizerRuntime.renderFile({
+  const { result, options } = await tokenizerRuntime.renderFile({
     file,
     payload: tokenizerPayload,
   });
   sendFileSuccess(id, result, options);
 }
 
-function handleRenderDiff({
+async function handleRenderDiff({
   id,
   diff,
   tokenizerPayload,
-}: RenderDiffRequest): void {
+}: RenderDiffRequest): Promise<void> {
   if (tokenizerRuntime == null) {
     throw new Error('WorkerTokenizer: received diff request before initialize');
   }
-  const { result, options } = tokenizerRuntime.renderDiff({
+  const { result, options } = await tokenizerRuntime.renderDiff({
     diff,
     payload: tokenizerPayload,
   });

@@ -14,7 +14,7 @@ import type {
 } from '../types';
 
 export type WorkerRequestId = string;
-export type WorkerTokenizerType = 'shiki' | (string & {});
+export type WorkerTokenizerType = 'shiki' | 'arborium' | (string & {});
 
 export interface WorkerTokenizerBootstrap {
   type: WorkerTokenizerType;
@@ -28,6 +28,14 @@ export interface ShikiWorkerTokenizerBootstrapData {
 
 export interface ShikiWorkerTokenizerRenderPayload {
   resolvedLanguages?: ResolvedLanguage[];
+}
+
+export interface ArboriumWorkerTokenizerBootstrapData {
+  preloadLanguages?: Exclude<SupportedLanguages, 'text' | 'ansi'>[];
+}
+
+export interface ArboriumWorkerTokenizerRenderPayload {
+  preloadLanguages?: Exclude<SupportedLanguages, 'text' | 'ansi'>[];
 }
 
 export interface WorkerRenderingOptions {

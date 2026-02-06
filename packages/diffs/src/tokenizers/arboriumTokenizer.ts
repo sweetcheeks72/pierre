@@ -49,7 +49,7 @@ export interface ArboriumTokenizerOptions {
 
 const ARBORIUM_TOKENIZER_CAPABILITIES: DiffsTokenizerCapabilities =
   Object.freeze({
-    supportsWorkers: false,
+    supportsWorkers: true,
     supportsStreaming: false,
     supportsDecorations: false,
     supportsDualTheme: false,

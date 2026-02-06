@@ -89,9 +89,14 @@ export class FileStream {
     _source: ReadableStream<string>,
     _wrapper: HTMLElement
   ): Promise<void> {
+    if (!this.tokenizer.capabilities.supportsStreaming) {
+      throw new Error(
+        `FileStream: tokenizer "${this.tokenizer.id}" does not support streaming.`
+      );
+    }
     if (!isShikiTokenizer(this.tokenizer)) {
       throw new Error(
-        'FileStream: custom tokenizers are not supported yet. FileStream currently requires the default shiki tokenizer.'
+        `FileStream: tokenizer "${this.tokenizer.id}" advertises streaming but no stream adapter is registered yet.`
       );
     }
     const isSettingUp = this.queuedSetupArgs != null;

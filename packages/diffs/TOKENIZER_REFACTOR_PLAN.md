@@ -92,7 +92,9 @@ than coupled to Shiki internals, while preserving current behavior by default.
 
 1. PR1 complete.
 2. PR2 complete.
-3. PR3 in progress: `ArboriumTokenizer` adapter and usage docs added as a spike.
+3. PR3 complete: `ArboriumTokenizer` adapter and usage docs added as a spike.
+4. PR4 in progress: worker tokenizer bootstrap/runtime generalized beyond Shiki;
+   streaming remains capability-gated with Shiki as the active stream adapter.
 
 ## Acceptance Criteria
 

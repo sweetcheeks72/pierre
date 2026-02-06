@@ -30,6 +30,8 @@ import { renderDiffWithHighlighter } from '../utils/renderDiffWithHighlighter';
 import { renderFileWithHighlighter } from '../utils/renderFileWithHighlighter';
 import type {
   AllWorkerTasks,
+  ArboriumWorkerTokenizerBootstrapData,
+  ArboriumWorkerTokenizerRenderPayload,
   DiffRendererInstance,
   FileRendererInstance,
   InitializeWorkerTask,
@@ -49,6 +51,7 @@ import type {
   WorkerResponse,
   WorkerStats,
   WorkerTokenizerBootstrap,
+  WorkerTokenizerType,
 } from './types';
 
 const IGNORE_RESPONSE = Symbol('IGNORE_RESPONSE');
@@ -204,6 +207,10 @@ export class WorkerPoolManager {
   getDiffRenderOptions(): RenderDiffOptions {
     const { theme, tokenizeMaxLineLength, lineDiffType } = this.renderOptions;
     return { theme, tokenizeMaxLineLength, lineDiffType };
+  }
+
+  getTokenizerType(): WorkerTokenizerType {
+    return this.renderOptions.tokenizer;
   }
 
   private async setRenderOptionsOnWorkers(
@@ -783,8 +790,12 @@ export class WorkerPoolManager {
   }
 
   private getLangsFromTask(task: AllWorkerTasks): SupportedLanguages[] {
-    if (this.renderOptions.tokenizer !== 'shiki') {
-      return [];
+    switch (this.renderOptions.tokenizer) {
+      case 'shiki':
+      case 'arborium':
+        break;
+      default:
+        return [];
     }
     const langs = new Set<SupportedLanguages>();
     if (task.type === 'initialize' || task.type === 'set-render-options') {
@@ -818,17 +829,31 @@ export class WorkerPoolManager {
   private async resolveTaskTokenizerPayload(
     workerMissingLangs: SupportedLanguages[]
   ): Promise<unknown | undefined> {
-    if (
-      this.renderOptions.tokenizer !== 'shiki' ||
-      workerMissingLangs.length === 0
-    ) {
+    if (workerMissingLangs.length === 0) {
       return undefined;
     }
-    const resolvedLanguages = hasResolvedLanguages(workerMissingLangs)
-      ? getResolvedLanguages(workerMissingLangs)
-      : await resolveLanguages(workerMissingLangs);
-    const payload: ShikiWorkerTokenizerRenderPayload = { resolvedLanguages };
-    return payload;
+    switch (this.renderOptions.tokenizer) {
+      case 'shiki': {
+        const resolvedLanguages = hasResolvedLanguages(workerMissingLangs)
+          ? getResolvedLanguages(workerMissingLangs)
+          : await resolveLanguages(workerMissingLangs);
+        const payload: ShikiWorkerTokenizerRenderPayload = {
+          resolvedLanguages,
+        };
+        return payload;
+      }
+      case 'arborium': {
+        const payload: ArboriumWorkerTokenizerRenderPayload = {
+          preloadLanguages: workerMissingLangs.filter(
+            (lang): lang is Exclude<SupportedLanguages, 'text' | 'ansi'> =>
+              lang !== 'text' && lang !== 'ansi'
+          ),
+        };
+        return payload;
+      }
+      default:
+        return undefined;
+    }
   }
 
   private async resolveTokenizerBootstrap({
@@ -862,6 +887,18 @@ export class WorkerPoolManager {
         };
         return { type: 'shiki', data };
       }
+      case 'arborium': {
+        const preloadLanguages = includeLanguages
+          ? languages.filter(
+              (lang): lang is Exclude<SupportedLanguages, 'text' | 'ansi'> =>
+                lang !== 'text' && lang !== 'ansi'
+            )
+          : [];
+        const data: ArboriumWorkerTokenizerBootstrapData = {
+          preloadLanguages,
+        };
+        return { type: 'arborium', data };
+      }
       default:
         throw new Error(
           `WorkerPoolManager: unsupported worker tokenizer "${String(
@@ -875,12 +912,24 @@ export class WorkerPoolManager {
     renderOptions: WorkerRenderingOptions,
     languages: SupportedLanguages[] = []
   ): Promise<void> {
+    const themeNames = getThemes(renderOptions.theme);
+    const plainTextLanguages: SupportedLanguages[] = ['text'];
+
     if (renderOptions.tokenizer !== 'shiki') {
-      this.highlighter = undefined;
+      if (this.highlighter != null) {
+        const resolvedThemes = hasResolvedThemes(themeNames)
+          ? getResolvedThemes(themeNames)
+          : await resolveThemes(themeNames);
+        attachResolvedThemes(resolvedThemes, this.highlighter);
+        return;
+      }
+      this.highlighter = await getSharedHighlighter({
+        themes: themeNames,
+        langs: plainTextLanguages,
+      });
       return;
     }
 
-    const themeNames = getThemes(renderOptions.theme);
     const shikiLanguages = languages.filter(
       (lang) => lang !== 'text' && lang !== 'ansi'
     );
@@ -895,7 +944,7 @@ export class WorkerPoolManager {
 
     this.highlighter = await getSharedHighlighter({
       themes: themeNames,
-      langs: ['text', ...shikiLanguages],
+      langs: [...plainTextLanguages, ...shikiLanguages],
     });
   }
 

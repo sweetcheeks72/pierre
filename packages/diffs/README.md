@@ -44,6 +44,15 @@ For the Arborium adapter, install Arborium in your app:
 bun i @arborium/arborium
 ```
 
+For worker-pool rendering, configure the worker tokenizer explicitly:
+
+```ts
+const highlighterOptions = {
+  tokenizer: 'arborium',
+  theme: { dark: 'pierre-dark', light: 'pierre-light' },
+};
+```
+
 ## Development
 
 Technically you can use the package manager of your choice, but we use
