@@ -3,12 +3,10 @@ import type { ArboriumTokenizerOptions } from '@pierre/diffs';
 export const tokenizerStyles = `
   pre[data-theme-type='dark'] a-k {
     color: #ff678d;
-    font-weight: 600;
   }
     
   pre[data-theme-type='light'] a-k {
     color: #fc2b73;
-    font-weight: 600;
   }
 
   pre[data-theme-type='dark'] a-n {

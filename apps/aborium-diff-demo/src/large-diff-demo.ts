@@ -7,7 +7,7 @@ import WorkerUrl from './arborium-worker.ts?worker&url';
 import {
   largeTypescriptNewFile,
   largeTypescriptOldFile,
-} from './example-source';
+} from './large-diff-source';
 
 function normalizePathname(pathname: string): string {
   const withoutQuery = pathname.split('?')[0] ?? pathname;

@@ -2,6 +2,7 @@ import { isLargeDiffRoute, mountLargeDiffDemo } from './large-diff-demo';
 import { mountMainDemo } from './main-demo';
 import { mountSsrDemo } from './ssr-demo';
 import { isSsrRoute } from './ssr-markup';
+import { isStreamingRoute, mountStreamingDemo } from './streaming-demo';
 import './style.css';
 
 const app = globalThis.document.getElementById('app');
@@ -15,6 +16,8 @@ if (isSsrRoute(pathname)) {
   cleanup = mountSsrDemo(app);
 } else if (isLargeDiffRoute(pathname)) {
   cleanup = mountLargeDiffDemo(app);
+} else if (isStreamingRoute(pathname)) {
+  cleanup = mountStreamingDemo(app);
 } else {
   cleanup = mountMainDemo(app);
 }
