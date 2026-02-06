@@ -88,6 +88,12 @@ than coupled to Shiki internals, while preserving current behavior by default.
 4. PR4: Worker tokenizer bootstrap + optional streaming extensions.
 5. PR5: Cloud token stream contract + remote adapter + fallback behavior.
 
+## Current Implementation Status
+
+1. PR1 complete.
+2. PR2 complete.
+3. PR3 in progress: `ArboriumTokenizer` adapter and usage docs added as a spike.
+
 ## Acceptance Criteria
 
 1. Existing Shiki-based public behavior remains unchanged by default.

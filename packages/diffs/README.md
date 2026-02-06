@@ -27,6 +27,23 @@ JavaScript and React components.
 bun i @pierre/diffs
 ```
 
+## Custom Tokenizer Example (Arborium)
+
+`@pierre/diffs` now supports passing a custom tokenizer adapter.
+
+```ts
+import { ArboriumTokenizer, FileRenderer } from '@pierre/diffs';
+
+const tokenizer = new ArboriumTokenizer();
+const renderer = new FileRenderer({ tokenizer });
+```
+
+For the Arborium adapter, install Arborium in your app:
+
+```bash
+bun i @arborium/arborium
+```
+
 ## Development
 
 Technically you can use the package manager of your choice, but we use
