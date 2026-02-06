@@ -1,3 +1,4 @@
+import { isLargeDiffRoute, mountLargeDiffDemo } from './large-diff-demo';
 import { mountMainDemo } from './main-demo';
 import { mountSsrDemo } from './ssr-demo';
 import { isSsrRoute } from './ssr-markup';
@@ -8,9 +9,15 @@ if (!(app instanceof HTMLDivElement)) {
   throw new Error('Expected #app container to exist');
 }
 
-const cleanup = isSsrRoute(globalThis.location.pathname)
-  ? mountSsrDemo(app)
-  : mountMainDemo(app);
+const pathname = globalThis.location.pathname;
+let cleanup: () => void;
+if (isSsrRoute(pathname)) {
+  cleanup = mountSsrDemo(app);
+} else if (isLargeDiffRoute(pathname)) {
+  cleanup = mountLargeDiffDemo(app);
+} else {
+  cleanup = mountMainDemo(app);
+}
 
 if (import.meta.hot != null) {
   import.meta.hot.dispose(() => {

@@ -113,6 +113,8 @@
     "{packages,apps}/*/.output/**",
     "{packages,apps}/*/.vercel/**",
     "packages/storage-elements/blocks/git-platform-sync/**",
+    "apps/aborium-diff-demo/src/composerOLD.tsx",
+    "apps/aborium-diff-demo/src/composerNEW.tsx",
     "update-themes.js"
   ]
 }

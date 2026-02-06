@@ -44,6 +44,8 @@
     ".vercel",
     "apps/docs/public/r/*",
     "apps/docs/next-env.d.ts",
+    "apps/aborium-diff-demo/src/composerOLD.tsx",
+    "apps/aborium-diff-demo/src/composerNEW.tsx",
     "*.patch"
   ]
 }

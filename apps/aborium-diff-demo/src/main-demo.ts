@@ -81,6 +81,7 @@ export function mountMainDemo(app: HTMLDivElement): () => void {
       <div class="toolbar">
         <strong>Aborium Diff Demo</strong>
         <a href="/ssr/aborium">Open SSR File Renderer</a>
+        <a href="/large-diff">Open Composer TSX Diff</a>
         <button id="theme-dark">Dark Theme</button>
         <button id="theme-light">Light Theme</button>
         <button id="stream-start">Start Stream</button>

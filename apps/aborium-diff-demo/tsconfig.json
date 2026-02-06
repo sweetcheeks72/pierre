@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.options.json",
   "include": ["src/**/*", "vite.config.ts"],
+  "exclude": ["src/composerOLD.tsx", "src/composerNEW.tsx"],
   "compilerOptions": {
     "composite": false,
     "noEmit": true,

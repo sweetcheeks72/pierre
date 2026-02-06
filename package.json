@@ -141,7 +141,7 @@
     "typescript": "catalog:"
   },
   "lint-staged": {
-    "**/*.{js,jsx,ts,tsx}": [
+    "**/!(*composerOLD|*composerNEW).{js,jsx,ts,tsx}": [
       "oxfmt --write",
       "git update-index --again",
       "oxlint --type-aware --tsconfig tsconfig.oxlint.json --fix"
