@@ -41,6 +41,7 @@ export * from './renderers/DiffHunksRenderer';
 export * from './renderers/FileRenderer';
 export * from './shiki-stream';
 export * from './sprite';
+export * from './tokenizers';
 export * from './utils/areDiffLineAnnotationsEqual';
 export * from './utils/areFilesEqual';
 export * from './utils/areHunkDataEqual';

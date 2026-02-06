@@ -13,6 +13,7 @@ import {
   getSharedHighlighter,
 } from '../highlighter/shared_highlighter';
 import { areThemesAttached } from '../highlighter/themes/areThemesAttached';
+import { getShikiTokenizer, isShikiTokenizer } from '../tokenizers';
 import type {
   AnnotationLineMap,
   AnnotationSpan,
@@ -20,6 +21,7 @@ import type {
   CodeColumnType,
   DiffLineAnnotation,
   DiffsHighlighter,
+  DiffsTokenizer,
   ExpansionDirections,
   FileDiffMetadata,
   HunkData,
@@ -104,7 +106,7 @@ interface ProcessContext {
 }
 
 type OptionsWithDefaults = Required<
-  Omit<BaseDiffOptions, 'lang' | 'unsafeCSS'>
+  Omit<BaseDiffOptions, 'lang' | 'unsafeCSS' | 'tokenizer'>
 >;
 
 export interface HunksRenderResult {
@@ -132,6 +134,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
   readonly __id: string = `diff-hunks-renderer:${++instanceId}`;
 
   private highlighter: DiffsHighlighter | undefined;
+  private tokenizer: DiffsTokenizer = getShikiTokenizer();
   private diff: FileDiffMetadata | undefined;
 
   private expandedHunks = new Map<number, HunkExpansionRegion>();
@@ -141,13 +144,18 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
 
   private computedLang: SupportedLanguages = 'text';
   private renderCache: RenderedDiffASTCache | undefined;
+  private warnedCustomTokenizerWithWorker = false;
 
   constructor(
     public options: BaseDiffOptions = { theme: DEFAULT_THEMES },
     private onRenderUpdate?: () => unknown,
     private workerManager?: WorkerPoolManager | undefined
   ) {
-    if (workerManager?.isWorkingPool() !== true) {
+    this.setTokenizer(options);
+    if (
+      workerManager?.isWorkingPool() !== true &&
+      isShikiTokenizer(this.tokenizer)
+    ) {
       this.highlighter = areThemesAttached(options.theme ?? DEFAULT_THEMES)
         ? getHighlighterIfLoaded()
         : undefined;
@@ -172,6 +180,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
 
   public setOptions(options: BaseDiffOptions): void {
     this.options = options;
+    this.setTokenizer(options);
   }
 
   private mergeOptions(options: Partial<BaseDiffOptions>) {
@@ -392,7 +401,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       ) {
         this.workerManager.highlightDiffAST(this, diff);
       }
-    } else {
+    } else if (isShikiTokenizer(this.tokenizer)) {
       this.computedLang = diff.lang ?? getFiletypeFromFileName(diff.name);
       const hasThemes =
         this.highlighter != null && areThemesAttached(options.theme);
@@ -432,6 +441,14 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
           this.onHighlightSuccess(diff, result, options);
         });
       }
+    } else if (
+      forceRender ||
+      this.renderCache.result == null ||
+      !this.renderCache.highlighted
+    ) {
+      void this.asyncHighlight(diff).then(({ result, options }) => {
+        this.onHighlightSuccess(diff, result, options);
+      });
     }
     return this.renderCache.result != null
       ? this.processDiffResult(
@@ -479,6 +496,19 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
   private async asyncHighlight(
     diff: FileDiffMetadata
   ): Promise<RenderDiffResult> {
+    if (!isShikiTokenizer(this.tokenizer)) {
+      const { options } = this.getRenderOptions(diff);
+      const { collapsedContextThreshold } = this.getOptionsWithDefaults();
+      const result = await this.tokenizer.renderDiff({
+        diff,
+        options,
+        renderOptions: {
+          collapsedContextThreshold,
+        },
+      });
+      return { result, options };
+    }
+
     this.computedLang = diff.lang ?? getFiletypeFromFileName(diff.name);
     const hasThemes =
       this.highlighter != null &&
@@ -536,6 +566,30 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
 
   public onHighlightError(error: unknown): void {
     console.error(error);
+  }
+
+  private setTokenizer(options: BaseDiffOptions): void {
+    let tokenizer = options.tokenizer ?? getShikiTokenizer();
+    if (
+      this.workerManager?.isWorkingPool() === true &&
+      !isShikiTokenizer(tokenizer)
+    ) {
+      if (!this.warnedCustomTokenizerWithWorker) {
+        this.warnedCustomTokenizerWithWorker = true;
+        console.warn(
+          'DiffHunksRenderer: custom tokenizers are not supported with WorkerPoolManager yet. Falling back to the default shiki tokenizer.'
+        );
+      }
+      tokenizer = getShikiTokenizer();
+    }
+    const tokenizerChanged = this.tokenizer !== tokenizer;
+    this.tokenizer = tokenizer;
+    if (tokenizerChanged) {
+      this.renderCache = undefined;
+      this.highlighter = isShikiTokenizer(tokenizer)
+        ? getHighlighterIfLoaded()
+        : undefined;
+    }
   }
 
   private processDiffResult(

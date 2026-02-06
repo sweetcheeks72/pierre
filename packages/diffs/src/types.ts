@@ -338,6 +338,7 @@ export type LineDiffTypes = 'word-alt' | 'word' | 'char' | 'none';
 
 export interface BaseCodeOptions {
   theme?: DiffsThemeNames | ThemesType;
+  tokenizer?: DiffsTokenizer;
   disableLineNumbers?: boolean;
   overflow?: 'scroll' | 'wrap'; // 'scroll' is default
   themeType?: ThemeTypes; // 'system' is default
@@ -572,6 +573,40 @@ export interface RenderFileResult {
 export interface RenderDiffResult {
   result: ThemedDiffResult;
   options: RenderDiffOptions;
+}
+
+export type Awaitable<T> = T | Promise<T>;
+
+export interface DiffsTokenizerCapabilities {
+  supportsWorkers: boolean;
+  supportsStreaming: boolean;
+  supportsDecorations: boolean;
+  supportsDualTheme: boolean;
+}
+
+export interface DiffsTokenizerPreloadOptions {
+  themes?: DiffsThemeNames[];
+  langs?: SupportedLanguages[];
+}
+
+export interface DiffsTokenizerRenderFileInput {
+  file: FileContents;
+  options: RenderFileOptions;
+  renderOptions?: Partial<ForceFilePlainTextOptions>;
+}
+
+export interface DiffsTokenizerRenderDiffInput {
+  diff: FileDiffMetadata;
+  options: RenderDiffOptions;
+  renderOptions?: Partial<ForceDiffPlainTextOptions>;
+}
+
+export interface DiffsTokenizer {
+  readonly id: string;
+  readonly capabilities: DiffsTokenizerCapabilities;
+  preload?(options?: DiffsTokenizerPreloadOptions): Awaitable<void>;
+  renderFile(input: DiffsTokenizerRenderFileInput): Awaitable<ThemedFileResult>;
+  renderDiff(input: DiffsTokenizerRenderDiffInput): Awaitable<ThemedDiffResult>;
 }
 
 export interface RenderedFileASTCache {

@@ -2,9 +2,11 @@ import { DEFAULT_THEMES, DIFFS_TAG_NAME } from '../constants';
 import { getSharedHighlighter } from '../highlighter/shared_highlighter';
 import { queueRender } from '../managers/UniversalRenderingManager';
 import { CodeToTokenTransformStream, type RecallToken } from '../shiki-stream';
+import { getShikiTokenizer, isShikiTokenizer } from '../tokenizers';
 import type {
   BaseCodeOptions,
   DiffsHighlighter,
+  DiffsTokenizer,
   SupportedLanguages,
   ThemedToken,
   ThemeTypes,
@@ -34,6 +36,7 @@ let instanceId = -1;
 export class FileStream {
   readonly __id: string = `file-stream:${++instanceId}`;
 
+  private tokenizer: DiffsTokenizer = getShikiTokenizer();
   private highlighter: DiffsHighlighter | undefined;
   private stream: ReadableStream<string> | undefined;
   private abortController: AbortController | undefined;
@@ -45,6 +48,7 @@ export class FileStream {
   private currentRowCount = 0;
 
   constructor(public options: FileStreamOptions = { theme: DEFAULT_THEMES }) {
+    this.tokenizer = options.tokenizer ?? getShikiTokenizer();
     this.currentLineIndex = this.options.startingLineIndex ?? 1;
   }
 
@@ -85,6 +89,11 @@ export class FileStream {
     _source: ReadableStream<string>,
     _wrapper: HTMLElement
   ): Promise<void> {
+    if (!isShikiTokenizer(this.tokenizer)) {
+      throw new Error(
+        'FileStream: custom tokenizers are not supported yet. FileStream currently requires the default shiki tokenizer.'
+      );
+    }
     const isSettingUp = this.queuedSetupArgs != null;
     this.queuedSetupArgs = [_source, _wrapper];
     if (isSettingUp) {

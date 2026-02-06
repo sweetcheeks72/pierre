@@ -9,9 +9,11 @@ import {
 } from '../highlighter/shared_highlighter';
 import { areThemesAttached } from '../highlighter/themes/areThemesAttached';
 import { hasResolvedThemes } from '../highlighter/themes/hasResolvedThemes';
+import { getShikiTokenizer, isShikiTokenizer } from '../tokenizers';
 import type {
   BaseCodeOptions,
   DiffsHighlighter,
+  DiffsTokenizer,
   FileContents,
   LineAnnotation,
   RenderedFileASTCache,
@@ -81,17 +83,23 @@ export class FileRenderer<LAnnotation = undefined> {
   readonly __id: string = `file-renderer:${++instanceId}`;
 
   private highlighter: DiffsHighlighter | undefined;
+  private tokenizer: DiffsTokenizer = getShikiTokenizer();
   private renderCache: RenderedFileASTCache | undefined;
   private computedLang: SupportedLanguages = 'text';
   private lineAnnotations: AnnotationLineMap<LAnnotation> = {};
   private lineCache: LineCache | undefined;
+  private warnedCustomTokenizerWithWorker = false;
 
   constructor(
     public options: FileRendererOptions = { theme: DEFAULT_THEMES },
     private onRenderUpdate?: () => unknown,
     private workerManager?: WorkerPoolManager | undefined
   ) {
-    if (workerManager?.isWorkingPool() !== true) {
+    this.setTokenizer(options);
+    if (
+      workerManager?.isWorkingPool() !== true &&
+      isShikiTokenizer(this.tokenizer)
+    ) {
       this.highlighter = areThemesAttached(options.theme ?? DEFAULT_THEMES)
         ? getHighlighterIfLoaded()
         : undefined;
@@ -100,6 +108,7 @@ export class FileRenderer<LAnnotation = undefined> {
 
   public setOptions(options: FileRendererOptions): void {
     this.options = options;
+    this.setTokenizer(options);
   }
 
   private mergeOptions(options: Partial<FileRendererOptions>): void {
@@ -250,7 +259,7 @@ export class FileRenderer<LAnnotation = undefined> {
       ) {
         this.workerManager.highlightFileAST(this, file);
       }
-    } else {
+    } else if (isShikiTokenizer(this.tokenizer)) {
       this.computedLang = file.lang ?? getFiletypeFromFileName(file.name);
       const hasThemes =
         this.highlighter != null && areThemesAttached(options.theme);
@@ -290,6 +299,14 @@ export class FileRenderer<LAnnotation = undefined> {
           this.onHighlightSuccess(file, result, options);
         });
       }
+    } else if (
+      forceRender ||
+      this.renderCache.result == null ||
+      !this.renderCache.highlighted
+    ) {
+      void this.asyncHighlight(file).then(({ result, options }) => {
+        this.onHighlightSuccess(file, result, options);
+      });
     }
 
     return this.renderCache.result != null
@@ -310,6 +327,15 @@ export class FileRenderer<LAnnotation = undefined> {
   }
 
   private async asyncHighlight(file: FileContents): Promise<RenderFileResult> {
+    if (!isShikiTokenizer(this.tokenizer)) {
+      const { options } = this.getRenderOptions(file);
+      const result = await this.tokenizer.renderFile({
+        file,
+        options,
+      });
+      return { result, options };
+    }
+
     this.computedLang = file.lang ?? getFiletypeFromFileName(file.name);
     const hasThemes =
       this.highlighter != null &&
@@ -475,6 +501,30 @@ export class FileRenderer<LAnnotation = undefined> {
       getHighlighterOptions(this.computedLang, this.options)
     );
     return this.highlighter;
+  }
+
+  private setTokenizer(options: FileRendererOptions): void {
+    let tokenizer = options.tokenizer ?? getShikiTokenizer();
+    if (
+      this.workerManager?.isWorkingPool() === true &&
+      !isShikiTokenizer(tokenizer)
+    ) {
+      if (!this.warnedCustomTokenizerWithWorker) {
+        this.warnedCustomTokenizerWithWorker = true;
+        console.warn(
+          'FileRenderer: custom tokenizers are not supported with WorkerPoolManager yet. Falling back to the default shiki tokenizer.'
+        );
+      }
+      tokenizer = getShikiTokenizer();
+    }
+    const tokenizerChanged = this.tokenizer !== tokenizer;
+    this.tokenizer = tokenizer;
+    if (tokenizerChanged) {
+      this.renderCache = undefined;
+      this.highlighter = isShikiTokenizer(tokenizer)
+        ? getHighlighterIfLoaded()
+        : undefined;
+    }
   }
 
   public onHighlightSuccess(
