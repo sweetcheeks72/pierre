@@ -2355,6 +2355,14 @@ exports[`DiffHunksRenderer proper buffers should be prepended to additions colum
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -4828,6 +4836,14 @@ exports[`DiffHunksRenderer proper buffers should be prepended to deletions colum
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -5154,6 +5170,14 @@ exports[`DiffHunksRenderer additions and deletions should be empty when unified:
     "children": [
       {
         "children": [
+          {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
           {
             "children": [
               {
@@ -7849,6 +7873,14 @@ exports[`DiffHunksRenderer a diff with only additions should have an empty delet
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -8986,6 +9018,14 @@ exports[`DiffHunksRenderer a diff with only deletions should have an empty addit
     "children": [
       {
         "children": [
+          {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
           {
             "children": [
               {

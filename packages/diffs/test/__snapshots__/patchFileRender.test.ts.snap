@@ -2594,6 +2594,14 @@ exports[`file.patch fixture parses and renders the patch file: rendered patch 1`
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],

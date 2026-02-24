@@ -23,6 +23,7 @@ export const ALTERNATE_FILE_NAMES_GIT: RegExp =
 export const INDEX_LINE_METADATA: RegExp =
   /^index ([0-9a-f]+)\.\.([0-9a-f]+)(?: (\d+))?$/i;
 
+export const HEADER_PREFIX_SLOT_ID = 'header-prefix';
 export const HEADER_METADATA_SLOT_ID = 'header-metadata';
 
 export const DEFAULT_THEMES: ThemesType = {
@@ -50,6 +51,13 @@ export const DEFAULT_EXPANDED_REGION: HunkExpansionRegion = Object.freeze({
 export const DEFAULT_RENDER_RANGE: RenderRange = {
   startingLine: 0,
   totalLines: Infinity,
+  bufferBefore: 0,
+  bufferAfter: 0,
+};
+
+export const EMPTY_RENDER_RANGE: RenderRange = {
+  startingLine: 0,
+  totalLines: 0,
   bufferBefore: 0,
   bufferAfter: 0,
 };

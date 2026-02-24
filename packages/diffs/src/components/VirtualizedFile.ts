@@ -51,10 +51,14 @@ export class VirtualizedFile<
   override setOptions(options: FileOptions<LAnnotation> | undefined): void {
     if (options == null) return;
     const previousOverflow = this.options.overflow;
+    const previousCollapsed = this.options.collapsed;
 
     super.setOptions(options);
 
-    if (previousOverflow !== this.options.overflow) {
+    if (
+      previousOverflow !== this.options.overflow ||
+      previousCollapsed !== this.options.collapsed
+    ) {
       this.heightCache.clear();
       this.computeApproximateSize();
       this.renderRange = undefined;
@@ -163,7 +167,11 @@ export class VirtualizedFile<
       return;
     }
 
-    const { disableFileHeader = false, overflow = 'scroll' } = this.options;
+    const {
+      disableFileHeader = false,
+      collapsed = false,
+      overflow = 'scroll',
+    } = this.options;
     const { diffHeaderHeight, fileGap, lineHeight } = this.metrics;
     const lines = this.getOrCreateLineCache(this.file);
 
@@ -172,6 +180,9 @@ export class VirtualizedFile<
       this.height += diffHeaderHeight;
     } else {
       this.height += fileGap;
+    }
+    if (collapsed) {
+      return;
     }
 
     if (overflow === 'scroll' && this.lineAnnotations.length === 0) {

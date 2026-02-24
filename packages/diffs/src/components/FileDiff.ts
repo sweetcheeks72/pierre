@@ -4,7 +4,9 @@ import { toHtml } from 'hast-util-to-html';
 import {
   DEFAULT_THEMES,
   DIFFS_TAG_NAME,
+  EMPTY_RENDER_RANGE,
   HEADER_METADATA_SLOT_ID,
+  HEADER_PREFIX_SLOT_ID,
   UNSAFE_CSS_ATTRIBUTE,
 } from '../constants';
 import {
@@ -37,6 +39,7 @@ import type {
   HunkSeparators,
   PrePropertiesConfig,
   RenderHeaderMetadataCallback,
+  RenderHeaderPrefixCallback,
   RenderRange,
   SelectionSide,
   ThemeTypes,
@@ -96,6 +99,7 @@ export interface FileDiffOptions<LAnnotation>
    * @deprecated Use `enableGutterUtility` instead.
    */
   enableHoverUtility?: boolean;
+  renderHeaderPrefix?: RenderHeaderPrefixCallback;
   renderHeaderMetadata?: RenderHeaderMetadataCallback;
   /**
    * When true, errors during rendering are rethrown instead of being caught
@@ -170,6 +174,7 @@ export class FileDiff<LAnnotation = undefined> {
   protected gutterUtilityContent: HTMLElement | undefined;
 
   protected headerElement: HTMLElement | undefined;
+  protected headerPrefix: HTMLElement | undefined;
   protected headerMetadata: HTMLElement | undefined;
   protected separatorCache: Map<string, CustomHunkElementCache> = new Map();
   protected errorWrapper: HTMLElement | undefined;
@@ -441,6 +446,8 @@ export class FileDiff<LAnnotation = undefined> {
     this.bufferAfter = undefined;
     this.appliedPreAttributes = undefined;
     this.headerElement = undefined;
+    this.headerPrefix = undefined;
+    this.headerMetadata = undefined;
     this.lastRenderedHeaderHTML = undefined;
     this.errorWrapper = undefined;
     this.spriteSVG = undefined;
@@ -598,6 +605,8 @@ export class FileDiff<LAnnotation = undefined> {
         'FileDiff.render: attempting to call render after cleaned up'
       );
     }
+    const { collapsed = false } = this.options;
+    const nextRenderRange = collapsed ? undefined : renderRange;
     const filesDidChange =
       oldFile != null &&
       newFile != null &&
@@ -611,7 +620,8 @@ export class FileDiff<LAnnotation = undefined> {
         : false;
 
     if (
-      areRenderRangesEqual(renderRange, this.renderRange) &&
+      !collapsed &&
+      areRenderRangesEqual(nextRenderRange, this.renderRange) &&
       !forceRender &&
       !annotationsChanged &&
       // If using the fileDiff API, lets check to see if they are equal to
@@ -625,7 +635,7 @@ export class FileDiff<LAnnotation = undefined> {
     }
 
     const { renderRange: previousRenderRange } = this;
-    this.renderRange = renderRange;
+    this.renderRange = nextRenderRange;
     this.deletionFile = oldFile;
     this.additionFile = newFile;
 
@@ -666,11 +676,45 @@ export class FileDiff<LAnnotation = undefined> {
         this.headerElement = undefined;
         this.lastRenderedHeaderHTML = undefined;
       }
+      if (this.headerPrefix != null) {
+        this.headerPrefix.parentNode?.removeChild(this.headerPrefix);
+        this.headerPrefix = undefined;
+      }
+      if (this.headerMetadata != null) {
+        this.headerMetadata.parentNode?.removeChild(this.headerMetadata);
+        this.headerMetadata = undefined;
+      }
     }
     fileContainer = this.getOrCreateFileContainer(
       fileContainer,
       containerWrapper
     );
+
+    if (collapsed) {
+      this.removeRenderedCode();
+      this.clearAuxiliaryNodes();
+
+      try {
+        const hunksResult = this.hunksRenderer.renderDiff(
+          this.fileDiff,
+          EMPTY_RENDER_RANGE
+        );
+        if (hunksResult?.headerElement != null) {
+          this.applyHeaderToDOM(hunksResult.headerElement, fileContainer);
+        }
+        this.renderSeparators([]);
+        this.injectUnsafeCSS();
+      } catch (error: unknown) {
+        if (disableErrorHandling) {
+          throw error;
+        }
+        console.error(error);
+        if (error instanceof Error) {
+          this.applyErrorToDOM(error, fileContainer);
+        }
+      }
+      return true;
+    }
 
     try {
       const pre = this.getOrCreatePreNode(fileContainer);
@@ -681,13 +725,17 @@ export class FileDiff<LAnnotation = undefined> {
           forceRender,
           annotationsChanged,
           filesDidChange || diffDidChange
-        ) && this.applyPartialRender({ previousRenderRange, renderRange });
+        ) &&
+        this.applyPartialRender({
+          previousRenderRange,
+          renderRange: nextRenderRange,
+        });
 
       // If we were unable to partially render, perform a full render
       if (!didPartiallyRender) {
         const hunksResult = this.hunksRenderer.renderDiff(
           this.fileDiff,
-          renderRange
+          nextRenderRange
         );
         if (hunksResult == null) {
           // FIXME(amadeus): I don't think we actually need this check, as
@@ -714,7 +762,7 @@ export class FileDiff<LAnnotation = undefined> {
         this.renderSeparators(hunksResult.hunkData);
       }
 
-      this.applyBuffers(pre, renderRange);
+      this.applyBuffers(pre, nextRenderRange);
       this.injectUnsafeCSS();
       this.renderAnnotations();
       this.renderGutterUtility();
@@ -741,6 +789,46 @@ export class FileDiff<LAnnotation = undefined> {
       }
     }
     return true;
+  }
+
+  private removeRenderedCode(): void {
+    this.resizeManager.cleanUp();
+    this.scrollSyncManager.cleanUp();
+    this.mouseEventManager.cleanUp();
+    this.lineSelectionManager.cleanUp();
+
+    this.bufferBefore?.remove();
+    this.bufferBefore = undefined;
+    this.bufferAfter?.remove();
+    this.bufferAfter = undefined;
+
+    this.codeUnified?.remove();
+    this.codeUnified = undefined;
+    this.codeDeletions?.remove();
+    this.codeDeletions = undefined;
+    this.codeAdditions?.remove();
+    this.codeAdditions = undefined;
+
+    this.pre?.remove();
+    this.pre = undefined;
+
+    this.appliedPreAttributes = undefined;
+    this.lastRowCount = undefined;
+  }
+
+  private clearAuxiliaryNodes(): void {
+    for (const { element } of this.separatorCache.values()) {
+      element.parentNode?.removeChild(element);
+    }
+    this.separatorCache.clear();
+
+    for (const { element } of this.annotationCache.values()) {
+      element.parentNode?.removeChild(element);
+    }
+    this.annotationCache.clear();
+
+    this.gutterUtilityContent?.remove();
+    this.gutterUtilityContent = undefined;
   }
 
   public renderPlaceholder(height: number): boolean {
@@ -775,6 +863,8 @@ export class FileDiff<LAnnotation = undefined> {
     this.errorWrapper?.remove();
     this.headerElement?.remove();
     this.gutterUtilityContent?.remove();
+    this.headerPrefix?.remove();
+    this.headerMetadata?.remove();
     this.pre?.remove();
     this.spriteSVG?.remove();
     this.unsafeCSSStyle?.remove();
@@ -787,6 +877,8 @@ export class FileDiff<LAnnotation = undefined> {
     this.errorWrapper = undefined;
     this.headerElement = undefined;
     this.gutterUtilityContent = undefined;
+    this.headerPrefix = undefined;
+    this.headerMetadata = undefined;
     this.pre = undefined;
     this.spriteSVG = undefined;
     this.unsafeCSSStyle = undefined;
@@ -1001,16 +1093,35 @@ export class FileDiff<LAnnotation = undefined> {
 
     if (this.isContainerManaged) return;
 
-    const { renderHeaderMetadata } = this.options;
+    const { renderHeaderPrefix, renderHeaderMetadata } = this.options;
+    if (this.headerPrefix != null) {
+      this.headerPrefix.parentNode?.removeChild(this.headerPrefix);
+    }
     if (this.headerMetadata != null) {
       this.headerMetadata.parentNode?.removeChild(this.headerMetadata);
     }
+    const prefix =
+      renderHeaderPrefix?.({
+        deletionFile: this.deletionFile,
+        additionFile: this.additionFile,
+        fileDiff: this.fileDiff,
+      }) ?? undefined;
     const content =
       renderHeaderMetadata?.({
         deletionFile: this.deletionFile,
         additionFile: this.additionFile,
         fileDiff: this.fileDiff,
       }) ?? undefined;
+    if (prefix != null) {
+      this.headerPrefix = document.createElement('div');
+      this.headerPrefix.slot = HEADER_PREFIX_SLOT_ID;
+      if (prefix instanceof Element) {
+        this.headerPrefix.appendChild(prefix);
+      } else {
+        this.headerPrefix.innerText = `${prefix}`;
+      }
+      container.appendChild(this.headerPrefix);
+    }
     if (content != null) {
       this.headerMetadata = document.createElement('div');
       this.headerMetadata.slot = HEADER_METADATA_SLOT_ID;

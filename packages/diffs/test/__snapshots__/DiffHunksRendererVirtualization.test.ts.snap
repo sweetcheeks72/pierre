@@ -15,6 +15,14 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.2: Part
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -29209,6 +29217,14 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.3: Part
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -58167,6 +58183,14 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.4: Part
     "children": [
       {
         "children": [
+          {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
           {
             "children": [
               {
@@ -87490,6 +87514,14 @@ exports[`DiffHunksRenderer - Virtualization expanded collapsed regions 3.5: Wind
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -90277,6 +90309,14 @@ exports[`DiffHunksRenderer - Virtualization correct lines rendered 6.1: Rendered
       {
         "children": [
           {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
+          {
             "children": [
               {
                 "children": [],
@@ -91517,6 +91557,14 @@ exports[`DiffHunksRenderer - Virtualization correct lines rendered 6.2: Rendered
     "children": [
       {
         "children": [
+          {
+            "children": [],
+            "properties": {
+              "name": "header-prefix",
+            },
+            "tagName": "slot",
+            "type": "element",
+          },
           {
             "children": [
               {

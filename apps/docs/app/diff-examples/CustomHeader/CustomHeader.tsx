@@ -2,44 +2,10 @@
 
 import { MultiFileDiff } from '@pierre/diffs/react';
 import type { PreloadMultiFileDiffResult } from '@pierre/diffs/ssr';
-import {
-  IconCodeStyleBars,
-  IconCodeStyleBg,
-  IconDiffSplit,
-  IconDiffUnified,
-  IconMoon,
-  IconSun,
-} from '@pierre/icons';
-import type { ReactNode } from 'react';
+import { IconCheckboxFill, IconChevronSm, IconSquircleLg } from '@pierre/icons';
 import { useState } from 'react';
 
 import { FeatureHeader } from '../FeatureHeader';
-
-// =============================================================================
-// Local Components
-// =============================================================================
-
-type ThemeType = 'dark' | 'light';
-
-interface IconButtonProps {
-  onClick: () => void;
-  icon: ReactNode;
-  title: string;
-}
-
-function IconButton({ onClick, icon, title }: IconButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="cursor-pointer p-1 opacity-60 hover:opacity-100"
-      title={title}
-      aria-label={title}
-    >
-      {icon}
-    </button>
-  );
-}
 
 // =============================================================================
 // Custom Header Example (renderHeaderMetadata)
@@ -50,15 +16,20 @@ interface CustomHeaderProps {
 }
 
 export function CustomHeader({ prerenderedDiff }: CustomHeaderProps) {
-  const [themeType, setThemeType] = useState<ThemeType>(
-    prerenderedDiff.options?.themeType === 'light' ? 'light' : 'dark'
-  );
-  const [disableBackground, setDisableBackground] = useState(
-    prerenderedDiff.options?.disableBackground ?? false
-  );
-  const [diffStyle, setDiffStyle] = useState<'split' | 'unified'>(
-    prerenderedDiff.options?.diffStyle ?? 'split'
-  );
+  const [isViewed, setIsViewed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  function toggleCollapsed() {
+    setCollapsed((current) => !current);
+  }
+
+  function toggleViewed() {
+    setIsViewed((current) => {
+      const next = !current;
+      setCollapsed(next);
+      return next;
+    });
+  }
 
   return (
     <div className="scroll-mt-[20px] space-y-5" id="custom-header">
@@ -66,10 +37,9 @@ export function CustomHeader({ prerenderedDiff }: CustomHeaderProps) {
         title="Custom header metadata"
         description={
           <>
-            Use <code>renderHeaderMetadata</code> to inject custom content and
-            components into the file header. Perfect for adding view toggles,
-            theme switchers, copy buttons, or any other file-level actions while
-            preserving the built-in header.
+            Use <code>renderHeaderPrefix</code> and{' '}
+            <code>renderHeaderMetadata</code> to inject custom content into the
+            file header while preserving the built-in layout.
           </>
         }
       />
@@ -78,57 +48,46 @@ export function CustomHeader({ prerenderedDiff }: CustomHeaderProps) {
         className="diff-container"
         options={{
           ...prerenderedDiff.options,
-          themeType,
-          diffStyle,
-          disableBackground,
+          collapsed,
         }}
-        renderHeaderMetadata={() => (
-          <div className="-mr-1 flex items-center gap-1">
-            <IconButton
-              onClick={() =>
-                setDiffStyle((c) => (c === 'split' ? 'unified' : 'split'))
-              }
-              icon={
-                diffStyle === 'split' ? (
-                  <IconDiffSplit size={16} />
-                ) : (
-                  <IconDiffUnified size={16} />
-                )
-              }
-              title={
-                diffStyle === 'split' ? 'Switch to unified' : 'Switch to split'
-              }
-            />
-            <IconButton
-              onClick={() => setDisableBackground((c) => !c)}
-              icon={
-                disableBackground ? (
-                  <IconCodeStyleBars size={16} />
-                ) : (
-                  <IconCodeStyleBg size={16} />
-                )
-              }
-              title={
-                disableBackground ? 'Enable background' : 'Disable background'
-              }
-            />
-            <IconButton
-              onClick={() =>
-                setThemeType((c) => (c === 'dark' ? 'light' : 'dark'))
-              }
-              icon={
-                themeType === 'dark' ? (
-                  <IconMoon size={16} />
-                ) : (
-                  <IconSun size={16} />
-                )
-              }
-              title={
-                themeType === 'dark' ? 'Switch to light' : 'Switch to dark'
-              }
-            />
-          </div>
-        )}
+        renderHeaderPrefix={() => {
+          return (
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label={collapsed ? 'Expand file' : 'Collapse file'}
+              aria-pressed={collapsed}
+              style={{ marginLeft: -5 }}
+              className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md text-white/65 transition hover:bg-white/10 hover:text-white"
+            >
+              <IconChevronSm
+                className={`transition-transform ${collapsed ? '-rotate-90' : ''}`}
+              />
+            </button>
+          );
+        }}
+        renderHeaderMetadata={() => {
+          return (
+            <button
+              type="button"
+              onClick={toggleViewed}
+              aria-pressed={isViewed}
+              style={{ marginRight: -8 }}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-md border py-1 pr-2 pl-1 text-xs transition ${
+                isViewed
+                  ? 'border-blue-400/50 bg-blue-500/25 text-blue-200'
+                  : 'border-white/20 bg-transparent text-white/70 hover:border-white/35 hover:bg-white/5 hover:text-white/85'
+              }`}
+            >
+              {isViewed ? (
+                <IconCheckboxFill className="text-blue-400" />
+              ) : (
+                <IconSquircleLg className="text-white/50" />
+              )}
+              Viewed
+            </button>
+          );
+        }}
       />
     </div>
   );

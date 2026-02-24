@@ -348,6 +348,7 @@ export interface BaseCodeOptions {
   disableLineNumbers?: boolean;
   overflow?: 'scroll' | 'wrap'; // 'scroll' is default
   themeType?: ThemeTypes; // 'system' is default
+  collapsed?: boolean;
   disableFileHeader?: boolean;
   disableVirtualizationBuffers?: boolean;
 
@@ -403,6 +404,10 @@ export interface RenderHeaderMetadataProps {
 }
 
 export type RenderHeaderMetadataCallback = (
+  props: RenderHeaderMetadataProps
+) => Element | null | undefined | string | number;
+
+export type RenderHeaderPrefixCallback = (
   props: RenderHeaderMetadataProps
 ) => Element | null | undefined | string | number;
 

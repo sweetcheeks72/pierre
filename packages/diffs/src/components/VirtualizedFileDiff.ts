@@ -72,12 +72,14 @@ export class VirtualizedFileDiff<
     if (options == null) return;
     const previousDiffStyle = this.options.diffStyle;
     const previousOverflow = this.options.overflow;
+    const previousCollapsed = this.options.collapsed;
 
     super.setOptions(options);
 
     if (
       previousDiffStyle !== this.options.diffStyle ||
-      previousOverflow !== this.options.overflow
+      previousOverflow !== this.options.overflow ||
+      previousCollapsed !== this.options.collapsed
     ) {
       this.heightCache.clear();
       this.computeApproximateSize();
@@ -232,6 +234,7 @@ export class VirtualizedFileDiff<
     const {
       disableFileHeader = false,
       expandUnchanged = false,
+      collapsed = false,
       collapsedContextThreshold = DEFAULT_COLLAPSED_CONTEXT_THRESHOLD,
       hunkSeparators = 'line-info',
     } = this.options;
@@ -249,6 +252,9 @@ export class VirtualizedFileDiff<
       this.height += diffHeaderHeight;
     } else if (hunkSeparators !== 'simple' && hunkSeparators !== 'metadata') {
       this.height += fileGap;
+    }
+    if (collapsed) {
+      return;
     }
 
     iterateOverDiff({
