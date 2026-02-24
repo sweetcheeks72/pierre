@@ -7,6 +7,10 @@ import {
   PARSE_DIFF_FROM_FILE_EXAMPLE,
   PARSE_PATCH_FILES_EXAMPLE,
 } from './CoreTypes/constants';
+import {
+  CUSTOM_HUNK_SEPARATORS_EXAMPLE,
+  CUSTOM_HUNK_SEPARATORS_SWITCHER,
+} from './CustomHunkSeparators/constants';
 import { DocsLayout } from './DocsLayout';
 import { HeadingAnchors } from './HeadingAnchors';
 import {
@@ -107,6 +111,7 @@ export default function DocsPage() {
           <CoreTypesSection />
           <ReactAPISection />
           <VanillaAPISection />
+          <CustomHunkSeparatorsSection />
           <VirtualizationSection />
           <UtilitiesSection />
           <StylingSection />
@@ -254,6 +259,22 @@ async function VanillaAPISection() {
       diffHunksRenderer,
       diffHunksRendererPatch,
       fileRenderer,
+    },
+  });
+  return <ProseWrapper>{content}</ProseWrapper>;
+}
+
+async function CustomHunkSeparatorsSection() {
+  const [customHunkSeparatorsExample, customHunkSeparatorsSwitcher] =
+    await Promise.all([
+      preloadMultiFileDiff(CUSTOM_HUNK_SEPARATORS_EXAMPLE),
+      preloadFile(CUSTOM_HUNK_SEPARATORS_SWITCHER),
+    ]);
+  const content = await renderMDX({
+    filePath: 'docs/CustomHunkSeparators/content.mdx',
+    scope: {
+      customHunkSeparatorsExample,
+      customHunkSeparatorsSwitcher,
     },
   });
   return <ProseWrapper>{content}</ProseWrapper>;

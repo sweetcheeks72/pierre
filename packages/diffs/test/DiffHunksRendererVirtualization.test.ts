@@ -462,6 +462,29 @@ describe('DiffHunksRenderer - Virtualization', () => {
       expect(lineCount).toBeLessThanOrEqual(50);
       expect(result).toMatchSnapshot('expansion with windowing');
     });
+
+    test('3.6: Fully expanded - expandAllHunks()', async () => {
+      const expandedRenderer = new DiffHunksRenderer({
+        diffStyle: 'unified',
+      });
+
+      expandedRenderer.expandAllHunks();
+
+      const result = await expandedRenderer.asyncRender(fileDiff, {
+        startingLine: 0,
+        totalLines: Infinity,
+        bufferBefore: 0,
+        bufferAfter: 0,
+      });
+
+      assertDefined(
+        result.unifiedContentAST,
+        'result.unifiedContentAST should be defined'
+      );
+
+      const lineCount = countRenderedLines(result.unifiedContentAST);
+      expect(lineCount).toBe(fileDiff.unifiedLineCount);
+    });
   });
 
   describe('window boundary edge cases', () => {

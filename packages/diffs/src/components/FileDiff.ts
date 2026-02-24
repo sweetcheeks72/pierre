@@ -588,6 +588,11 @@ export class FileDiff<LAnnotation = undefined> {
     this.rerender();
   }
 
+  public expandAllHunks(): void {
+    this.hunksRenderer.expandAllHunks();
+    this.rerender();
+  }
+
   public render({
     oldFile,
     newFile,

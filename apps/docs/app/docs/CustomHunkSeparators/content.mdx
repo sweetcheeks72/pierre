@@ -1,0 +1,24 @@
+## Custom Hunk Separators
+
+Use `hunkSeparators` to control how collapsed unchanged regions are displayed.
+This example lets you swap between built-in separator presets, plus a `custom`
+mode that fully overrides the separator UI.
+
+<CustomHunkSeparators
+  prerenderedDiff={customHunkSeparatorsExample}
+  showHeader={false}
+/>
+
+### Prebuilt Separator Types
+
+- `line-info`: Full-width separator with collapsed line count and expand
+  controls.
+- `line-info-basic`: Compact, full-width variant of line-info.
+- `metadata`: Patch-style separator (`@@ -x,y +a,b @@`).
+- `simple`: Minimal separator bar.
+- `custom`: Overrides the separator with simple caret controls on the left and
+  text like `expand 43 lines`.
+
+### React Example
+
+<DocsCodeExample {...customHunkSeparatorsSwitcher} />
