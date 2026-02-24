@@ -1,5 +1,6 @@
 import '@/app/prose.css';
 import { preloadFile } from '@pierre/diffs/ssr';
+import type { Metadata } from 'next';
 
 import { DocsLayout } from '../../docs/DocsLayout';
 import { HeadingAnchors } from '../../docs/HeadingAnchors';
@@ -40,6 +41,12 @@ import {
 } from './VanillaAPI/constants';
 import Footer from '@/components/Footer';
 import { renderMDX } from '@/lib/mdx';
+
+export const metadata: Metadata = {
+  title: 'Pierre Trees Docs — API reference and guides.',
+  description:
+    'Documentation for @pierre/trees — installation, core types, React and vanilla APIs, utilities, styling, and SSR.',
+};
 
 export default function TreesDocsPage() {
   return (
