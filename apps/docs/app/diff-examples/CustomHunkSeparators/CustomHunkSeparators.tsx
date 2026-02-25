@@ -234,6 +234,11 @@ export function CustomHunkSeparators({
       ) : (
         <MultiFileDiff
           {...prerenderedDiff}
+          prerenderedHTML={
+            hunkSeparators === initialSeparator
+              ? prerenderedDiff.prerenderedHTML
+              : undefined
+          }
           className="overflow-hidden rounded-lg border dark:border-neutral-800"
           options={{
             ...prerenderedDiff.options,
