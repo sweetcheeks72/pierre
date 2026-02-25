@@ -17,7 +17,6 @@ export const CUSTOM_HUNK_SEPARATORS_SWITCHER: PreloadFileOptions<undefined> = {
 import { FileDiff } from '@pierre/diffs';
 import { MultiFileDiff } from '@pierre/diffs/react';
 import { useState } from 'react';
-import styles from './CustomHunkSeparators.module.css';
 
 type SeparatorOption =
   | 'line-info'
@@ -26,18 +25,31 @@ type SeparatorOption =
   | 'simple'
   | 'custom';
 
+const classes = {
+  wrapper: 'relative',
+  root: "absolute top-0 left-0 flex items-center gap-2 pl-[22px] text-[0.75rem] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))]",
+  controls: 'inline-flex gap-1',
+  button:
+    'relative m-0 inline-flex cursor-pointer appearance-none items-center border-0 bg-transparent p-0 text-inherit',
+  icon: '[font-family:var(--diffs-font-family,var(--diffs-font-fallback))] text-base leading-none',
+  label:
+    'ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
+  expandAll:
+    'm-0 ml-[10px] inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline before:relative before:-left-[9px] before:inline-block before:content-["·"]',
+} as const;
+
 function renderCustomSeparator(
   hunkData: HunkData,
   instance: FileDiff<undefined>
 ) {
   const wrapper = document.createElement('div');
-  wrapper.className = styles.customSeparatorWrapper;
+  wrapper.className = classes.wrapper;
 
   const root = document.createElement('div');
-  root.className = styles.customSeparatorRoot;
+  root.className = classes.root;
 
   const controls = document.createElement('div');
-  controls.className = styles.customSeparatorControls;
+  controls.className = classes.controls;
 
   if (hunkData.type === 'additions') {
     const spacer = document.createElement('span');
@@ -52,13 +64,13 @@ function renderCustomSeparator(
   function createControl(direction: ExpansionDirections) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = styles.customSeparatorButton;
+    button.className = classes.button;
     const icon = document.createElement('span');
-    icon.className = styles.customSeparatorIcon;
+    icon.className = classes.icon;
     icon.textContent =
       direction === 'up' ? '↓' : direction === 'down' ? '↑' : '↕';
     const label = document.createElement('span');
-    label.className = styles.customSeparatorLabel;
+    label.className = classes.label;
     label.textContent = labelText;
     button.append(icon, label);
     button.onclick = () => instance.expandHunk(hunkData.hunkIndex, direction);
@@ -75,7 +87,7 @@ function renderCustomSeparator(
 
   const expandAll = document.createElement('button');
   expandAll.type = 'button';
-  expandAll.className = styles.customExpandAllButton;
+  expandAll.className = classes.expandAll;
   expandAll.textContent = 'Expand all';
   expandAll.onclick = () => instance.expandAllHunks();
 

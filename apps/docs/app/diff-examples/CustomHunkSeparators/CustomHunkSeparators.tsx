@@ -12,7 +12,6 @@ import type { PreloadMultiFileDiffResult } from '@pierre/diffs/ssr';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { FeatureHeader } from '../FeatureHeader';
-import styles from './CustomHunkSeparators.module.css';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 
 type PrebuiltHunkSeparator = Exclude<HunkSeparators, 'custom'>;
@@ -28,6 +27,19 @@ const SEPARATOR_OPTIONS: {
   { value: 'simple', label: 'Simple' },
   { value: 'custom', label: 'Custom' },
 ];
+
+const CUSTOM_SEPARATOR_CLASS_NAMES = {
+  wrapper: 'relative',
+  root: 'absolute top-0 left-0 flex items-center gap-2 pl-[22px] text-[0.75rem] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))]',
+  controls: 'inline-flex gap-1',
+  button:
+    'relative m-0 inline-flex cursor-pointer appearance-none items-center border-0 bg-transparent p-0 text-inherit',
+  icon: '[font-family:var(--diffs-font-family,var(--diffs-font-fallback))] text-base leading-none',
+  label:
+    'ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
+  expandAllButton:
+    'm-0 ml-[10px] inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline before:relative before:-left-[9px] before:inline-block before:content-["·"]',
+} as const;
 
 function isPrebuiltHunkSeparator(
   value: unknown
@@ -49,7 +61,7 @@ function createControl(
 ): HTMLButtonElement {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = styles.customSeparatorButton;
+  button.className = CUSTOM_SEPARATOR_CLASS_NAMES.button;
   button.ariaLabel =
     direction === 'up'
       ? 'Expand up'
@@ -57,13 +69,13 @@ function createControl(
         ? 'Expand down'
         : 'Expand up and down';
   const icon = document.createElement('span');
-  icon.className = styles.customSeparatorIcon;
+  icon.className = CUSTOM_SEPARATOR_CLASS_NAMES.icon;
   icon.textContent =
     direction === 'up' ? '↓' : direction === 'down' ? '↑' : '↕';
   button.appendChild(icon);
   if (labelText != null) {
     const label = document.createElement('span');
-    label.className = styles.customSeparatorLabel;
+    label.className = CUSTOM_SEPARATOR_CLASS_NAMES.label;
     label.textContent = labelText;
     button.appendChild(label);
   }
@@ -76,10 +88,10 @@ function createCustomSeparator(
   instance: FileDiff<undefined>
 ): HTMLElement {
   const wrapper = document.createElement('div');
-  wrapper.className = styles.customSeparatorWrapper;
+  wrapper.className = CUSTOM_SEPARATOR_CLASS_NAMES.wrapper;
 
   const element = document.createElement('div');
-  element.className = styles.customSeparatorRoot;
+  element.className = CUSTOM_SEPARATOR_CLASS_NAMES.root;
 
   if (hunkData.type === 'additions') {
     const spacer = document.createElement('span');
@@ -90,7 +102,7 @@ function createCustomSeparator(
   }
 
   const controls = document.createElement('div');
-  controls.className = styles.customSeparatorControls;
+  controls.className = CUSTOM_SEPARATOR_CLASS_NAMES.controls;
 
   const canExpandUp = hunkData.expandable?.up === true;
   const canExpandDown = hunkData.expandable?.down === true;
@@ -132,7 +144,7 @@ function createCustomSeparator(
   element.appendChild(controls);
   const expandAll = document.createElement('button');
   expandAll.type = 'button';
-  expandAll.className = styles.customExpandAllButton;
+  expandAll.className = CUSTOM_SEPARATOR_CLASS_NAMES.expandAllButton;
   expandAll.textContent = 'Expand all';
   expandAll.addEventListener('click', () => {
     instance.expandAllHunks();
