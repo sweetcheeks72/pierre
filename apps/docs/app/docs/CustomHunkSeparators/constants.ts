@@ -34,8 +34,9 @@ const classes = {
   icon: '[font-family:var(--diffs-font-family,var(--diffs-font-fallback))] text-base leading-none',
   label:
     'ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
+  separatorDot: 'text-[color:var(--diffs-fg-number)]',
   expandAll:
-    'm-0 ml-[10px] inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline before:relative before:-left-[9px] before:inline-block before:content-["·"]',
+    'm-0 inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
 } as const;
 
 function renderCustomSeparator(
@@ -90,10 +91,13 @@ function renderCustomSeparator(
   expandAll.className = classes.expandAll;
   expandAll.textContent = 'Expand all';
   expandAll.onclick = () => instance.expandAllHunks();
+  const separatorDot = document.createElement('span');
+  separatorDot.className = classes.separatorDot;
+  separatorDot.textContent = '·';
 
   const spacer = document.createElement('span');
   spacer.textContent = ' ';
-  root.append(controls, expandAll);
+  root.append(controls, separatorDot, expandAll);
   wrapper.append(spacer, root);
   return wrapper;
 }
