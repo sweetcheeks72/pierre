@@ -505,9 +505,9 @@ describe('DiffHunksRenderer - Virtualization', () => {
       expect(fullyExpandedRange).toHaveLength(50);
       expect(fullyExpandedRange[0]).toBe(57);
       expect(fullyExpandedRange[49]).toBe(106);
-      // Unexpanded has 1 separator line. Fully expanding hunk 3 replaces it
-      // with all 50 hidden lines.
-      expect(lineCount).toBe(unexpandedLineCount + 49);
+      // Separator rows are not counted by countRenderedLines (no data-line),
+      // so expanding this 50-line collapsed range adds exactly 50 line rows.
+      expect(lineCount).toBe(unexpandedLineCount + 50);
       // Verify we only expanded this hunk range, not the entire file.
       // Hunk 0 still has collapsed leading lines (0..2), so they should
       // remain hidden.
