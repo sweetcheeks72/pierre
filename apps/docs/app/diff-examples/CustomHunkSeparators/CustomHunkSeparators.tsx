@@ -38,6 +38,8 @@ const CUSTOM_SEPARATOR_CLASS_NAMES = {
   label:
     'ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
   separatorDot: 'text-[color:var(--diffs-fg-number)]',
+  expandChunkButton:
+    'm-0 inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
 } as const;
 
 function isPrebuiltHunkSeparator(
@@ -141,10 +143,20 @@ function createCustomSeparator(
   }
 
   element.appendChild(controls);
-  const separatorDot = document.createElement('span');
-  separatorDot.className = CUSTOM_SEPARATOR_CLASS_NAMES.separatorDot;
-  separatorDot.textContent = '·';
-  element.appendChild(separatorDot);
+  if (hunkData.expandable?.chunked === true) {
+    const separatorDot = document.createElement('span');
+    separatorDot.className = CUSTOM_SEPARATOR_CLASS_NAMES.separatorDot;
+    separatorDot.textContent = '·';
+    const expandChunk = document.createElement('button');
+    expandChunk.type = 'button';
+    expandChunk.className = CUSTOM_SEPARATOR_CLASS_NAMES.expandChunkButton;
+    expandChunk.textContent = 'Expand entire hunk';
+    expandChunk.addEventListener('click', () => {
+      instance.expandHunkFully(hunkData.hunkIndex);
+    });
+    element.appendChild(separatorDot);
+    element.appendChild(expandChunk);
+  }
   const spacer = document.createElement('span');
   spacer.textContent = ' ';
   wrapper.appendChild(spacer);
@@ -185,6 +197,7 @@ export function CustomHunkSeparators({
 
     const options: FileDiffOptions<undefined> = {
       ...(prerenderedDiff.options ?? {}),
+      expansionLineCount: 5,
       hunkSeparators: (hunkData, instance) =>
         createCustomSeparator(hunkData, instance),
     };

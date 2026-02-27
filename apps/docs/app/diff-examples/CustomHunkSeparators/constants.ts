@@ -63,6 +63,7 @@ export const CUSTOM_HUNK_SEPARATORS_EXAMPLE: PreloadMultiFileDiffOptions<undefin
     options: {
       theme: { dark: 'pierre-dark', light: 'pierre-light' },
       diffStyle: 'split',
+      expansionLineCount: 5,
       hunkSeparators: 'line-info',
       unsafeCSS: CustomScrollbarCSS,
     },

@@ -578,13 +578,23 @@ export class FileDiff<LAnnotation = undefined> {
 
   public handleExpandHunk = (
     hunkIndex: number,
-    direction: ExpansionDirections
+    direction: ExpansionDirections,
+    expandFully = false
   ): void => {
+    if (expandFully) {
+      this.expandHunkFully(hunkIndex);
+      return;
+    }
     this.expandHunk(hunkIndex, direction);
   };
 
   public expandHunk(hunkIndex: number, direction: ExpansionDirections): void {
     this.hunksRenderer.expandHunk(hunkIndex, direction);
+    this.rerender();
+  }
+
+  public expandHunkFully(hunkIndex: number): void {
+    this.hunksRenderer.expandHunkFully(hunkIndex);
     this.rerender();
   }
 

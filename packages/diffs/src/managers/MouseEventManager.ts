@@ -103,7 +103,11 @@ export interface MouseEventManagerOptions<
   TMode extends MouseEventManagerMode,
 > extends MouseEventManagerBaseOptions<TMode> {
   usesCustomGutterUtility?: boolean;
-  onHunkExpand?(hunkIndex: number, direction: ExpansionDirections): unknown;
+  onHunkExpand?(
+    hunkIndex: number,
+    direction: ExpansionDirections,
+    expandFully?: boolean
+  ): unknown;
 }
 
 export class MouseEventManager<TMode extends MouseEventManagerMode> {
@@ -452,7 +456,7 @@ export class MouseEventManager<TMode extends MouseEventManagerMode> {
             'click',
             "FileDiff.DEBUG.handleMouseEvent: switch, 'click', expanding a hunk"
           );
-          onHunkExpand(data.hunkIndex, data.direction);
+          onHunkExpand(data.hunkIndex, data.direction, event.shiftKey === true);
           break;
         }
         if (isLineEventData(data, this.mode)) {
@@ -758,7 +762,11 @@ export function pluckMouseEventOptions<TMode extends MouseEventManagerMode>(
     renderHoverUtility,
     __debugMouseEvents,
   }: MouseEventPluckOptions<TMode>,
-  onHunkExpand?: (hunkIndex: number, direction: ExpansionDirections) => unknown
+  onHunkExpand?: (
+    hunkIndex: number,
+    direction: ExpansionDirections,
+    expandFully?: boolean
+  ) => unknown
 ): MouseEventManagerOptions<TMode> {
   return {
     enableGutterUtility: resolveEnableGutterUtilityOption({

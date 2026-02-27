@@ -35,6 +35,8 @@ const classes = {
   label:
     'ml-3 whitespace-nowrap text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
   separatorDot: 'text-[color:var(--diffs-fg-number)]',
+  expandChunk:
+    'm-0 inline-flex cursor-pointer appearance-none items-center whitespace-nowrap border-0 bg-transparent p-0 text-[0.75rem] text-[color:var(--diffs-fg-number)] [font-family:var(--diffs-header-font-family,var(--diffs-header-font-fallback))] hover:underline',
 } as const;
 
 function renderCustomSeparator(
@@ -84,13 +86,22 @@ function renderCustomSeparator(
     controls.append(createControl('down'));
   }
 
-  const separatorDot = document.createElement('span');
-  separatorDot.className = classes.separatorDot;
-  separatorDot.textContent = '·';
+  if (hunkData.expandable?.chunked) {
+    const separatorDot = document.createElement('span');
+    separatorDot.className = classes.separatorDot;
+    separatorDot.textContent = '·';
+    const expandChunk = document.createElement('button');
+    expandChunk.type = 'button';
+    expandChunk.className = classes.expandChunk;
+    expandChunk.textContent = 'Expand entire hunk';
+    expandChunk.onclick = () => instance.expandHunkFully(hunkData.hunkIndex);
+    root.append(controls, separatorDot, expandChunk);
+  } else {
+    root.append(controls);
+  }
 
   const spacer = document.createElement('span');
   spacer.textContent = ' ';
-  root.append(controls, separatorDot);
   wrapper.append(spacer, root);
   return wrapper;
 }
@@ -100,6 +111,7 @@ function HunkSeparatorDemo({ oldFile, newFile }) {
 
   if (separator === 'custom') {
     const instance = new FileDiff({
+      expansionLineCount: 5,
       hunkSeparators: (hunkData, fileDiffInstance) =>
         renderCustomSeparator(hunkData, fileDiffInstance),
     });
@@ -111,7 +123,7 @@ function HunkSeparatorDemo({ oldFile, newFile }) {
     <MultiFileDiff
       oldFile={oldFile}
       newFile={newFile}
-      options={{ hunkSeparators: separator }}
+      options={{ expansionLineCount: 5, hunkSeparators: separator }}
     />
   );
 }`,

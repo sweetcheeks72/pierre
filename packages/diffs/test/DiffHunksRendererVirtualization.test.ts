@@ -462,6 +462,56 @@ describe('DiffHunksRenderer - Virtualization', () => {
       expect(lineCount).toBeLessThanOrEqual(50);
       expect(result).toMatchSnapshot('expansion with windowing');
     });
+
+    test('3.6: Fully expanded single hunk range', async () => {
+      const expandedRenderer = new DiffHunksRenderer({
+        diffStyle: 'unified',
+      });
+
+      expandedRenderer.expandHunkFully(3);
+
+      const result = await expandedRenderer.asyncRender(fileDiff, {
+        startingLine: 0,
+        totalLines: Infinity,
+        bufferBefore: 0,
+        bufferAfter: 0,
+      });
+
+      assertDefined(
+        result.unifiedContentAST,
+        'result.unifiedContentAST should be defined'
+      );
+
+      const { unifiedIndices } = extractLineNumbers(result.unifiedContentAST);
+      const lineCount = countRenderedLines(result.unifiedContentAST);
+
+      const unexpandedResult = await unifiedRenderer.asyncRender(fileDiff, {
+        startingLine: 0,
+        totalLines: Infinity,
+        bufferBefore: 0,
+        bufferAfter: 0,
+      });
+      assertDefined(
+        unexpandedResult.unifiedContentAST,
+        'unexpandedResult.unifiedContentAST should be defined'
+      );
+      const unexpandedLineCount = countRenderedLines(
+        unexpandedResult.unifiedContentAST
+      );
+
+      const fullyExpandedRange = unifiedIndices.filter(
+        (idx) => idx >= 57 && idx <= 106
+      );
+      expect(fullyExpandedRange).toHaveLength(50);
+      expect(fullyExpandedRange[0]).toBe(57);
+      expect(fullyExpandedRange[49]).toBe(106);
+      // Unexpanded has 1 separator line. Fully expanding hunk 3 replaces it
+      // with all 50 hidden lines.
+      expect(lineCount).toBe(unexpandedLineCount + 49);
+      // Verify we only expanded this hunk range, not the entire file.
+      expect(lineCount).toBeLessThan(fileDiff.unifiedLineCount);
+      expect(unifiedIndices).not.toContain(0);
+    });
   });
 
   describe('window boundary edge cases', () => {
