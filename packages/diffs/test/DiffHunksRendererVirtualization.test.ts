@@ -509,8 +509,11 @@ describe('DiffHunksRenderer - Virtualization', () => {
       // with all 50 hidden lines.
       expect(lineCount).toBe(unexpandedLineCount + 49);
       // Verify we only expanded this hunk range, not the entire file.
-      expect(lineCount).toBeLessThan(fileDiff.unifiedLineCount);
+      // Hunk 0 still has collapsed leading lines (0..2), so they should
+      // remain hidden.
       expect(unifiedIndices).not.toContain(0);
+      expect(unifiedIndices).not.toContain(1);
+      expect(unifiedIndices).not.toContain(2);
     });
   });
 
