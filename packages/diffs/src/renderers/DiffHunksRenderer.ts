@@ -214,8 +214,8 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       this.renderCache = undefined;
     }
     this.expandedHunks.set(index, {
-      fromStart: Number.MAX_SAFE_INTEGER,
-      fromEnd: Number.MAX_SAFE_INTEGER,
+      fromStart: Number.POSITIVE_INFINITY,
+      fromEnd: Number.POSITIVE_INFINITY,
     });
   }
 
