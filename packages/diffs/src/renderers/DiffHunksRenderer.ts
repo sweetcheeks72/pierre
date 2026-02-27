@@ -135,7 +135,6 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
   private diff: FileDiffMetadata | undefined;
 
   private expandedHunks = new Map<number, HunkExpansionRegion>();
-  private allHunksExpanded = false;
 
   private deletionAnnotations: AnnotationLineMap<LAnnotation> = {};
   private additionAnnotations: AnnotationLineMap<LAnnotation> = {};
@@ -206,22 +205,6 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       this.renderCache = undefined;
     }
     this.expandedHunks.set(index, region);
-  }
-
-  public expandAllHunks(): void {
-    // NOTE(amadeus): If our render cache is not highlighted, we need to clear
-    // it, otherwise we won't have the correct AST lines
-    if (this.renderCache?.highlighted !== true) {
-      this.renderCache = undefined;
-    }
-    this.allHunksExpanded = true;
-  }
-
-  public getExpandedHunks(): Map<number, HunkExpansionRegion> | true {
-    if (this.allHunksExpanded) {
-      return true;
-    }
-    return this.expandedHunks;
   }
 
   public getExpandedHunk(hunkIndex: number): HunkExpansionRegion {
@@ -365,8 +348,6 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
     }
     const { expandUnchanged = false, collapsedContextThreshold } =
       this.getOptionsWithDefaults();
-    const expandedHunks =
-      expandUnchanged === true ? true : this.getExpandedHunks();
     const cache = this.workerManager?.getDiffResultCache(diff);
     if (cache != null && this.renderCache == null) {
       this.renderCache = {
@@ -396,7 +377,11 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
           renderRange.totalLines,
           // If we aren't using a windowed render, then we need to render
           // everything
-          isDefaultRenderRange(renderRange) ? true : expandedHunks,
+          isDefaultRenderRange(renderRange)
+            ? true
+            : expandUnchanged
+              ? true
+              : this.expandedHunks,
           collapsedContextThreshold
         );
         this.renderCache.renderRange = renderRange;
@@ -579,8 +564,6 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
     let unifiedContentAST: ElementContent[] | undefined = [];
 
     const hunkData: HunkData[] = [];
-    const expandedHunks =
-      expandUnchanged === true ? true : this.getExpandedHunks();
     const { additionLines, deletionLines } = code;
     const context: ProcessContext = {
       rowCount: 0,
@@ -670,7 +653,7 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
       diffStyle,
       startingLine: renderRange.startingLine,
       totalLines: renderRange.totalLines,
-      expandedHunks,
+      expandedHunks: expandUnchanged ? true : this.expandedHunks,
       collapsedContextThreshold,
       callback: ({
         hunkIndex,

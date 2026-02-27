@@ -202,13 +202,6 @@ export class VirtualizedFileDiff<
     // this.rerender();
   }
 
-  override expandAllHunks(): void {
-    this.hunksRenderer.expandAllHunks();
-    this.computeApproximateSize();
-    this.renderRange = undefined;
-    this.virtualizer.instanceChanged(this);
-  }
-
   public setVisibility(visible: boolean): void {
     if (this.fileContainer == null) {
       return;
@@ -269,7 +262,7 @@ export class VirtualizedFileDiff<
       diffStyle,
       expandedHunks: expandUnchanged
         ? true
-        : this.hunksRenderer.getExpandedHunks(),
+        : this.hunksRenderer.getExpandedHunksMap(),
       collapsedContextThreshold,
       callback: ({
         hunkIndex,
@@ -425,16 +418,7 @@ export class VirtualizedFileDiff<
         renderAll: true,
       };
     }
-    const region = this.hunksRenderer.getExpandedHunks();
-    if (region === true) {
-      return {
-        fromStart: rangeSize,
-        fromEnd: 0,
-        collapsedLines: 0,
-        renderAll: true,
-      };
-    }
-    const expandedRegion = region.get(hunkIndex);
+    const expandedRegion = this.hunksRenderer.getExpandedHunk(hunkIndex);
     const fromStart = Math.min(
       Math.max(expandedRegion?.fromStart ?? 0, 0),
       rangeSize
@@ -586,7 +570,7 @@ export class VirtualizedFileDiff<
       diffStyle,
       expandedHunks: expandUnchanged
         ? true
-        : this.hunksRenderer.getExpandedHunks(),
+        : this.hunksRenderer.getExpandedHunksMap(),
       collapsedContextThreshold,
       callback: ({
         hunkIndex,
