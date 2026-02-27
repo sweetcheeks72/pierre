@@ -418,15 +418,9 @@ export class VirtualizedFileDiff<
         renderAll: true,
       };
     }
-    const expandedRegion = this.hunksRenderer.getExpandedHunk(hunkIndex);
-    const fromStart = Math.min(
-      Math.max(expandedRegion?.fromStart ?? 0, 0),
-      rangeSize
-    );
-    const fromEnd = Math.min(
-      Math.max(expandedRegion?.fromEnd ?? 0, 0),
-      rangeSize
-    );
+    const region = this.hunksRenderer.getExpandedHunk(hunkIndex);
+    const fromStart = Math.min(Math.max(region.fromStart, 0), rangeSize);
+    const fromEnd = Math.min(Math.max(region.fromEnd, 0), rangeSize);
     const expandedCount = fromStart + fromEnd;
     const renderAll = expandedCount >= rangeSize;
     return {
