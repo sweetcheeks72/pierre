@@ -207,6 +207,18 @@ export class DiffHunksRenderer<LAnnotation = undefined> {
     this.expandedHunks.set(index, region);
   }
 
+  public expandHunkFully(index: number): void {
+    // NOTE(amadeus): If our render cache is not highlighted, we need to clear
+    // it, otherwise we won't have the correct AST lines
+    if (this.renderCache?.highlighted !== true) {
+      this.renderCache = undefined;
+    }
+    this.expandedHunks.set(index, {
+      fromStart: Number.POSITIVE_INFINITY,
+      fromEnd: Number.POSITIVE_INFINITY,
+    });
+  }
+
   public getExpandedHunk(hunkIndex: number): HunkExpansionRegion {
     return this.expandedHunks.get(hunkIndex) ?? DEFAULT_EXPANDED_REGION;
   }

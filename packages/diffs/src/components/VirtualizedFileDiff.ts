@@ -202,6 +202,13 @@ export class VirtualizedFileDiff<
     // this.rerender();
   }
 
+  override expandHunkFully(hunkIndex: number): void {
+    this.hunksRenderer.expandHunkFully(hunkIndex);
+    this.computeApproximateSize();
+    this.renderRange = undefined;
+    this.virtualizer.instanceChanged(this);
+  }
+
   public setVisibility(visible: boolean): void {
     if (this.fileContainer == null) {
       return;

@@ -12,6 +12,8 @@ import { ArbitraryFiles } from './diff-examples/ArbitraryFiles/ArbitraryFiles';
 import { ARBITRARY_DIFF_EXAMPLE } from './diff-examples/ArbitraryFiles/constants';
 import { CUSTOM_HEADER_EXAMPLE } from './diff-examples/CustomHeader/constants';
 import { CustomHeader } from './diff-examples/CustomHeader/CustomHeader';
+import { CUSTOM_HUNK_SEPARATORS_EXAMPLE } from './diff-examples/CustomHunkSeparators/constants';
+import { CustomHunkSeparators } from './diff-examples/CustomHunkSeparators/CustomHunkSeparators';
 import { DIFF_STYLES } from './diff-examples/DiffStyles/constants';
 import { DiffStyles } from './diff-examples/DiffStyles/DiffStyles';
 import { FONT_STYLES } from './diff-examples/FontStyles/constants';
@@ -40,6 +42,7 @@ export default function Home() {
         <ShikiThemesSection />
         <DiffStylesSection />
         <FontStylesSection />
+        <CustomHunkSeparatorsSection />
         <CustomHeaderSection />
         {/* <PrebuiltReact /> */}
         <AnnotationsSection />
@@ -92,6 +95,16 @@ async function CustomHeaderSection() {
   return (
     <CustomHeader
       prerenderedDiff={await preloadMultiFileDiff(CUSTOM_HEADER_EXAMPLE)}
+    />
+  );
+}
+
+async function CustomHunkSeparatorsSection() {
+  return (
+    <CustomHunkSeparators
+      prerenderedDiff={await preloadMultiFileDiff(
+        CUSTOM_HUNK_SEPARATORS_EXAMPLE
+      )}
     />
   );
 }

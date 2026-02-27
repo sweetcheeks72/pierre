@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import type { ComponentPropsWithoutRef } from 'react';
 import remarkGfm from 'remark-gfm';
 
+import { CustomHunkSeparators } from '../app/diff-examples/CustomHunkSeparators/CustomHunkSeparators';
 import { DocsCodeExample } from '../app/docs/DocsCodeExample';
 import { PackageManagerTabs } from '../app/docs/Installation/PackageManagerTabs';
 import { CodeToggle } from '../app/docs/Overview/CodeToggle';
@@ -57,6 +58,7 @@ const defaultComponents = {
   IconInfoFill,
   IconBulbFill,
   DocsCodeExample,
+  CustomHunkSeparators,
   FileTree,
   MultiFileDiff,
   // Interactive tab components
