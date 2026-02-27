@@ -1813,8 +1813,7 @@ export class FileDiff<LAnnotation = undefined> {
     pre: HTMLPreElement,
     renderRange: RenderRange | undefined
   ) {
-    const { disableVirtualizationBuffers = false } = this.options;
-    if (disableVirtualizationBuffers || renderRange == null) {
+    if (renderRange == null || this.shouldDisableVirtualizationBuffers()) {
       if (this.bufferBefore != null) {
         this.bufferBefore.remove();
         this.bufferBefore = undefined;
@@ -1858,6 +1857,10 @@ export class FileDiff<LAnnotation = undefined> {
       this.bufferAfter.remove();
       this.bufferAfter = undefined;
     }
+  }
+
+  protected shouldDisableVirtualizationBuffers(): boolean {
+    return this.options.disableVirtualizationBuffers ?? false;
   }
 
   protected applyPreNodeAttributes(
