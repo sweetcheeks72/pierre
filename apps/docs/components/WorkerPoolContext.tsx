@@ -23,6 +23,7 @@ const PoolOptions: WorkerPoolOptions = {
 const HighlighterOptions: WorkerInitializationRenderOptions = {
   theme: { dark: 'pierre-dark', light: 'pierre-light' },
   langs: ['zig', 'typescript', 'tsx', 'css', 'sh'],
+  preferredHighlighter: 'shiki-wasm',
 };
 
 interface WorkerPoolProps {
