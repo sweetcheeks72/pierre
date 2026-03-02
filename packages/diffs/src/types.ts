@@ -658,3 +658,8 @@ export interface SelectionPoint {
   lineNumber: number;
   side: SelectionSide | undefined;
 }
+
+export interface StickySpecs {
+  topOffset: number;
+  height: number;
+}
