@@ -444,6 +444,7 @@ export class FileDiff<LAnnotation = undefined> {
     this.errorWrapper = undefined;
     this.spriteSVG = undefined;
     this.lastRowCount = undefined;
+    this.unsafeCSSStyle = undefined;
 
     if (recycle) {
       this.hunksRenderer.recycle();
