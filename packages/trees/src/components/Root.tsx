@@ -1,3 +1,4 @@
+/** @jsxImportSource preact */
 import {
   expandAllFeature,
   hotkeysCoreFeature,
@@ -18,7 +19,16 @@ import {
   useRef,
 } from 'preact/hooks';
 
-import { FLATTENED_PREFIX } from '../constants';
+import {
+  CONTEXT_MENU_SLOT_NAME,
+  CONTEXT_MENU_TRIGGER_TYPE,
+  FLATTENED_PREFIX,
+  HEADER_SLOT_NAME,
+} from '../constants';
+import {
+  contextMenuFeature,
+  type ContextMenuRequest,
+} from '../features/contextMenuFeature';
 import { dragAndDropFeature } from '../features/dragAndDropFeature';
 import {
   fileTreeSearchFeature,
@@ -36,7 +46,7 @@ import type {
   FileTreeStateConfig,
 } from '../FileTree';
 import { generateLazyDataLoader } from '../loader/lazy';
-import { generateSyncDataLoader } from '../loader/sync';
+import { generateSyncDataLoaderFromTreeData } from '../loader/sync';
 import type { SVGSpriteNames } from '../sprite';
 import type { FileTreeNode } from '../types';
 import { computeNewFilesAfterDrop } from '../utils/computeNewFilesAfterDrop';
@@ -47,11 +57,9 @@ import {
 } from '../utils/expandPaths';
 import { fileListToTree } from '../utils/fileListToTree';
 import { getGitStatusSignature } from '../utils/getGitStatusSignature';
-import {
-  buildAncestorChains,
-  buildChildToParent,
-} from '../utils/guideLineAncestors';
+import { getSelectionPath } from '../utils/getSelectionPath';
 import type { ChildrenSortOption } from '../utils/sortChildren';
+import { useContextMenuController } from './hooks/useContextMenuController';
 import { useTree } from './hooks/useTree';
 import { Icon } from './Icon';
 import { VirtualizedList } from './VirtualizedList';
@@ -84,11 +92,6 @@ function memo<P>(
   Memoed.displayName = `Memo(${c.displayName ?? c.name ?? 'Component'})`;
   return Memoed as unknown as FunctionComponent<P>;
 }
-
-const getSelectionPath = (path: string): string =>
-  path.startsWith(FLATTENED_PREFIX)
-    ? path.slice(FLATTENED_PREFIX.length)
-    : path;
 
 const getFilesSignature = (files: string[]): string =>
   `${files.length}\0${files.join('\0')}`;
@@ -275,7 +278,6 @@ function TreeItemInner({
           },
         }
       : baseProps;
-
   const statusLabel =
     itemGitStatus === 'added'
       ? 'A'
@@ -430,15 +432,12 @@ export function Root({
     return { pathToId: p2i, idToPath: i2p };
   }, [treeData]);
 
-  const childToParent = useMemo(
-    () => buildChildToParent(treeData, flattenEmptyDirectories === true),
-    [treeData, flattenEmptyDirectories]
-  );
-
-  const ancestorChains = useMemo(
-    () => buildAncestorChains(treeData, childToParent),
-    [treeData, childToParent]
-  );
+  const ancestorChainsCacheRef = useRef<Map<string, string[]>>(new Map());
+  const prevIdToPathForCacheRef = useRef(idToPath);
+  if (prevIdToPathForCacheRef.current !== idToPath) {
+    prevIdToPathForCacheRef.current = idToPath;
+    ancestorChainsCacheRef.current.clear();
+  }
 
   const restTreeConfig = useMemo(() => {
     const mapId = (item: string): string => {
@@ -638,14 +637,23 @@ export function Root({
             flattenEmptyDirectories,
             sortComparator,
           })
-        : generateSyncDataLoader(files, {
+        : generateSyncDataLoaderFromTreeData(treeData, {
             flattenEmptyDirectories,
-            sortComparator,
           }),
-    [files, flattenEmptyDirectories, useLazyDataLoader, sortComparator]
+    [
+      files,
+      flattenEmptyDirectories,
+      sortComparator,
+      treeData,
+      useLazyDataLoader,
+    ]
   );
 
   const isDnD = fileTreeOptions.dragAndDrop === true;
+  const isContextMenuEnabled =
+    callbacksRef != null
+      ? callbacksRef.current.onContextMenuOpen != null
+      : stateConfig?.onContextMenuOpen != null;
 
   const features = useMemo(() => {
     const base = [
@@ -655,6 +663,7 @@ export function Root({
       fileTreeSearchFeature,
       expandAllFeature,
       gitStatusFeature,
+      contextMenuFeature,
     ];
     if (isDnD) {
       base.push(dragAndDropFeature, keyboardDragAndDropFeature);
@@ -813,10 +822,24 @@ export function Root({
     gitStatusSignature: getGitStatusSignature(gitStatus),
     gitStatusPathToId: pathToId,
   };
+  const contextMenuRequestHandlerRef = useRef<{
+    (request: ContextMenuRequest): void;
+  } | null>(null);
+  const handleContextMenuFeatureRequest = useCallback(
+    (request: ContextMenuRequest) => {
+      contextMenuRequestHandlerRef.current?.(request);
+    },
+    []
+  );
+  const contextMenuFeatureConfig = {
+    contextMenuEnabled: isContextMenuEnabled,
+    onContextMenuRequest: handleContextMenuFeatureRequest,
+  };
   const tree = useTree<FileTreeNode>({
     ...restTreeConfig,
     ...searchModeConfig,
     ...gitStatusConfig,
+    ...contextMenuFeatureConfig,
     rootItemId: 'root',
     dataLoader,
     getItemName: (item) => item.getItemData().name,
@@ -864,7 +887,56 @@ export function Root({
     }),
   });
 
+  const getAncestors = useCallback(
+    (itemId: string): string[] => {
+      const cache = ancestorChainsCacheRef.current;
+      const resolve = (id: string): string[] => {
+        const cached = cache.get(id);
+        if (cached != null) return cached;
+
+        const parentId = tree.getItemInstance(id).getItemMeta().parentId;
+        if (parentId == null || parentId === 'root') {
+          cache.set(id, EMPTY_ANCESTORS);
+          return EMPTY_ANCESTORS;
+        }
+
+        const chain = [...resolve(parentId), parentId];
+        cache.set(id, chain);
+        return chain;
+      };
+      return resolve(itemId);
+    },
+    [tree]
+  );
+
   searchActiveRef.current = (tree.getState().search?.length ?? 0) > 0;
+
+  const {
+    isContextMenuOpen,
+    contextMenuAnchorRef,
+    triggerRef,
+    closeContextMenu,
+    openContextMenuForItem,
+    handleTriggerClick,
+    handleTreeKeyDownCapture,
+    handleTreePointerOver,
+    handleTreePointerLeave,
+    handleWashMouseDownCapture,
+    handleWashWheelCapture,
+    handleWashTouchMoveCapture,
+  } = useContextMenuController({
+    tree,
+    isContextMenuEnabled,
+    callbacksRef,
+    files,
+    idToPath,
+  });
+  contextMenuRequestHandlerRef.current = (request: ContextMenuRequest) => {
+    openContextMenuForItem(request.itemId, request.anchorEl);
+  };
+
+  const focusedItemId = tree.getState().focusedItem ?? null;
+  const hasFocusedItem = focusedItemId != null;
 
   // Detect stale expanded IDs when the file list changes. Flattened chains
   // may break or form, causing node IDs to change. We snapshot the expanded
@@ -891,11 +963,16 @@ export function Root({
   // Populate handleRef so the FileTree class can call tree methods directly
   useEffect(() => {
     if (handleRef == null) return;
-    handleRef.current = { tree, pathToId, idToPath };
+    handleRef.current = {
+      tree,
+      pathToId,
+      idToPath,
+      closeContextMenu,
+    };
     return () => {
       handleRef.current = null;
     };
-  }, [tree, pathToId, idToPath, handleRef]);
+  }, [closeContextMenu, tree, pathToId, idToPath, handleRef]);
 
   // --- Migrate expanded state after file list changes ---
   // When the file list changes (DnD drop or controlled update), flattened
@@ -1051,8 +1128,6 @@ export function Root({
   const { onChange, ...origSearchInputProps } =
     tree.getSearchInputElementProps();
   const shouldRenderSearchInput = search === true;
-  const hasFocusedItem = tree.getState().focusedItem != null;
-  const focusedItemId = hasFocusedItem ? tree.getState().focusedItem : null;
   const isSearchOpen = tree.isSearchOpen?.() ?? false;
   const activeDescendantId =
     isSearchOpen && focusedItemId != null
@@ -1071,17 +1146,18 @@ export function Root({
     const selectedIds = tree.getState().selectedItems ?? [];
     if (selectedIds.length === 0 && focusedItemId == null) return '';
     const parentIds = new Set<string>();
-    for (const id of selectedIds) {
-      const parentId = childToParent.get(id);
+    const addParentId = (id: string) => {
+      const parentId = tree.getItemInstance(id).getItemMeta().parentId;
       if (parentId != null && parentId !== 'root') {
         parentIds.add(parentId);
       }
+    };
+
+    for (const id of selectedIds) {
+      addParentId(id);
     }
     if (focusedItemId != null) {
-      const focusedParentId = childToParent.get(focusedItemId);
-      if (focusedParentId != null && focusedParentId !== 'root') {
-        parentIds.add(focusedParentId);
-      }
+      addParentId(focusedItemId);
     }
     if (parentIds.size === 0) return '';
     const escape = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
@@ -1093,7 +1169,7 @@ export function Root({
       .join(',\n');
     return `:is(${selectors}) { opacity: 1; }`;
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionSnapshot, focusedItemId, childToParent]);
+  }, [selectionSnapshot, focusedItemId, tree]);
 
   const shouldVirtualize = virtualize != null && virtualize !== false;
   const virtualizeThreshold = shouldVirtualize
@@ -1106,8 +1182,12 @@ export function Root({
       {...containerProps}
       id={treeDomId}
       data-file-tree-virtualized-root={shouldVirtualize ? 'true' : undefined}
+      onKeyDownCapture={handleTreeKeyDownCapture}
+      onPointerOver={isContextMenuEnabled ? handleTreePointerOver : undefined}
+      onPointerLeave={isContextMenuEnabled ? handleTreePointerLeave : undefined}
     >
       <style dangerouslySetInnerHTML={{ __html: guideStyleText }} />
+      <slot name={HEADER_SLOT_NAME} data-type="header-slot" />
       {shouldRenderSearchInput ? (
         <div data-file-tree-search-container>
           <input
@@ -1161,7 +1241,7 @@ export function Root({
           const itemContainsGitChange =
             hasChildren &&
             (gitStatusMap?.foldersWithChanges.has(item.getId()) ?? false);
-          const ancestors = ancestorChains.get(item.getId()) ?? EMPTY_ANCESTORS;
+          const ancestors = getAncestors(item.getId());
 
           return (
             <TreeItem
@@ -1194,6 +1274,28 @@ export function Root({
           );
         };
 
+        const contextMenuTrigger = isContextMenuEnabled ? (
+          <div
+            ref={contextMenuAnchorRef}
+            data-type="context-menu-anchor"
+            data-visible="false"
+          >
+            <button
+              ref={triggerRef}
+              data-type={CONTEXT_MENU_TRIGGER_TYPE}
+              tabIndex={-1}
+              aria-label="Options"
+              aria-haspopup="menu"
+              onMouseDown={(e: MouseEvent) => e.preventDefault()}
+              onClick={handleTriggerClick}
+              data-visible="false"
+            >
+              <Icon {...remapIcon('file-tree-icon-ellipsis')} />
+            </button>
+            {isContextMenuOpen ? <slot name={CONTEXT_MENU_SLOT_NAME} /> : null}
+          </div>
+        ) : null;
+
         if (
           shouldVirtualize &&
           items.length > 0 &&
@@ -1214,12 +1316,27 @@ export function Root({
                     : null
                 }
               />
+              {contextMenuTrigger}
             </div>
           );
         }
 
-        return items.map((_, i) => renderItemAtIndex(i));
+        return (
+          <>
+            {items.map((_, i) => renderItemAtIndex(i))}
+            {contextMenuTrigger}
+          </>
+        );
       })()}
+      {isContextMenuOpen ? (
+        <div
+          data-type="context-menu-wash"
+          aria-hidden="true"
+          onMouseDownCapture={handleWashMouseDownCapture}
+          onWheelCapture={handleWashWheelCapture}
+          onTouchMoveCapture={handleWashTouchMoveCapture}
+        />
+      ) : null}
     </div>
   );
 }

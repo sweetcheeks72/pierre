@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 
 export const useTree = <T>(config: TreeConfig<T>): TreeInstance<T> => {
   'use no memo';
+
   const [tree] = useState(() => {
     const instance = createTree(config);
     // Initialize immediately for SSR support

@@ -1,6 +1,11 @@
 'use client';
 
-import { expandImplicitParentDirectories, FileTree } from '@pierre/trees';
+import {
+  CONTEXT_MENU_SLOT_NAME,
+  expandImplicitParentDirectories,
+  FileTree,
+  HEADER_SLOT_NAME,
+} from '@pierre/trees';
 import type { FileTreeOptions, FileTreeStateConfig } from '@pierre/trees';
 import { FileTree as FileTreeReact } from '@pierre/trees/react';
 import '@pierre/trees/web-components';
@@ -12,6 +17,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { createRoot, type Root as ReactDomRoot } from 'react-dom/client';
 
 import {
   FILE_TREE_COOKIE_FLATTEN,
@@ -28,12 +34,38 @@ import {
   sharedDemoFileTreeOptions,
   sharedDemoStateConfig,
 } from './demo-data';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+function cleanupFileTreeInstance(
+  container: HTMLElement,
+  instanceRef: { current: FileTree | null }
+): void {
+  if (instanceRef.current == null) return;
+  instanceRef.current.cleanUp();
+  const shadowRoot = container.shadowRoot;
+  if (shadowRoot !== null) {
+    const treeElement = Array.from(shadowRoot.children).find(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement && child.dataset?.fileTreeId != null
+    );
+    treeElement?.replaceChildren();
+  }
+}
 
 interface ClientPageProps {
   preloadedFileTreeHtml: string;
   preloadedFileTreeContainerHtml: string;
   preloadedControlledFileTreeHtml: string;
   preloadedGitStatusFileTreeHtml: string;
+  preloadedContextMenuFileTreeHtml: string;
+  preloadedContextMenuFileTreeContainerHtml: string;
   preloadedCustomIconsFileTreeHtml: string;
   initialFlattenEmptyDirectories?: boolean;
   initialUseLazyDataLoader?: boolean;
@@ -44,6 +76,8 @@ export function ClientPage({
   preloadedFileTreeContainerHtml,
   preloadedControlledFileTreeHtml,
   preloadedGitStatusFileTreeHtml,
+  preloadedContextMenuFileTreeHtml,
+  preloadedContextMenuFileTreeContainerHtml,
   preloadedCustomIconsFileTreeHtml,
   initialFlattenEmptyDirectories,
   initialUseLazyDataLoader,
@@ -282,7 +316,11 @@ export function ClientPage({
           description="Expands folders containing matches but keeps all items visible"
         >
           <ReactClientRendered
-            options={{ ...reactOptions, fileTreeSearchMode: 'expand-matches' }}
+            options={{
+              ...reactOptions,
+              search: true,
+              fileTreeSearchMode: 'expand-matches',
+            }}
             initialFiles={reactFiles}
             stateConfig={sharedDemoStateConfig}
           />
@@ -294,6 +332,7 @@ export function ClientPage({
           <ReactClientRendered
             options={{
               ...reactOptions,
+              search: true,
               fileTreeSearchMode: 'collapse-non-matches',
             }}
             initialFiles={reactFiles}
@@ -307,6 +346,7 @@ export function ClientPage({
           <ReactClientRendered
             options={{
               ...reactOptions,
+              search: true,
               fileTreeSearchMode: 'hide-non-matches',
             }}
             initialFiles={reactFiles}
@@ -399,6 +439,64 @@ export function ClientPage({
           stateConfig={sharedDemoStateConfig}
           prerenderedHTML={preloadedCustomIconsFileTreeHtml}
         />
+      </div>
+
+      {/* Divider */}
+      <hr className="my-8" style={{ borderColor: 'var(--color-border)' }} />
+
+      {/* Custom Header Slot */}
+      <h2
+        id="custom-header-slot"
+        className="mb-4 scroll-mt-[6rem] text-2xl font-bold"
+      >
+        Custom Header Slot
+      </h2>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <VanillaSSRHeaderSlot
+          options={fileTreeOptions}
+          stateConfig={sharedDemoStateConfig}
+          containerHtml={preloadedFileTreeContainerHtml}
+        />
+        <ReactSSRHeaderSlot
+          options={reactOptions}
+          initialFiles={reactFiles}
+          stateConfig={sharedDemoStateConfig}
+          prerenderedHTML={preloadedFileTreeHtml}
+        />
+      </div>
+
+      {/* Divider */}
+      <hr className="my-8" style={{ borderColor: 'var(--color-border)' }} />
+
+      {/* Context Menu */}
+      <h2
+        id="context-menu"
+        className="mb-4 scroll-mt-[6rem] text-2xl font-bold"
+      >
+        Context Menu
+      </h2>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <ExampleCard
+          title="Context Menu (Vanilla SSR)"
+          description="HTML prerendered on the server, hydrated with FileTree on the client, with menu content injected imperatively"
+        >
+          <VanillaSSRContextMenu
+            options={fileTreeOptions}
+            stateConfig={sharedDemoStateConfig}
+            containerHtml={preloadedContextMenuFileTreeContainerHtml}
+          />
+        </ExampleCard>
+        <ExampleCard
+          title="Context Menu (React SSR)"
+          description="React FileTree prerendered on the server, hydrated on the client, with menu content rendered through the slot"
+        >
+          <ReactSSRContextMenu
+            options={reactOptions}
+            initialFiles={reactFiles}
+            stateConfig={sharedDemoStateConfig}
+            prerenderedHTML={preloadedContextMenuFileTreeHtml}
+          />
+        </ExampleCard>
       </div>
 
       {/* Divider */}
@@ -816,17 +914,7 @@ function VanillaSSRState({
       const fileTreeContainer = node.querySelector('file-tree-container');
       if (!(fileTreeContainer instanceof HTMLElement)) return;
 
-      if (instanceRef.current != null) {
-        instanceRef.current.cleanUp();
-        const shadowRoot = fileTreeContainer.shadowRoot;
-        if (shadowRoot !== null) {
-          const treeElement = Array.from(shadowRoot.children).find(
-            (child): child is HTMLElement =>
-              child instanceof HTMLElement && child.dataset?.fileTreeId != null
-          );
-          treeElement?.replaceChildren();
-        }
-      }
+      cleanupFileTreeInstance(fileTreeContainer, instanceRef);
 
       const fileTree = new FileTree(options, mergedStateConfig);
 
@@ -1788,15 +1876,429 @@ function ReactSSRCustomIcons({
   );
 }
 
+type ContextMenuDemoItem = { path: string; isFolder: boolean };
+
+function TreeDemoContextMenu({
+  item,
+  onClose,
+}: {
+  item: ContextMenuDemoItem;
+  onClose: () => void;
+}) {
+  const itemType = item.isFolder ? 'Folder' : 'File';
+  return (
+    <DropdownMenu
+      open
+      modal={false}
+      onOpenChange={(open) => !open && onClose()}
+    >
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{
+            width: 1,
+            height: 1,
+            opacity: 0,
+            pointerEvents: 'none',
+            border: 0,
+            padding: 0,
+          }}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="right"
+        sideOffset={8}
+        className="min-w-[220px]"
+      >
+        <DropdownMenuLabel className="max-w-[280px] truncate">
+          {itemType}: {item.path}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onClose}>Open</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onClose}>Rename</DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={onClose}
+          className="text-destructive focus:text-destructive"
+        >
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function renderVanillaContextMenuSlot({
+  slotElement,
+  menuRootRef,
+  item,
+  onClose,
+}: {
+  slotElement: HTMLDivElement;
+  menuRootRef: { current: ReactDomRoot | null };
+  item: ContextMenuDemoItem;
+  onClose: () => void;
+}): void {
+  menuRootRef.current ??= createRoot(slotElement);
+  slotElement.style.display = 'block';
+  menuRootRef.current.render(
+    <TreeDemoContextMenu item={item} onClose={onClose} />
+  );
+}
+
+function clearVanillaContextMenuSlot({
+  slotElement,
+  menuRootRef,
+  unmount = false,
+}: {
+  slotElement: HTMLDivElement;
+  menuRootRef: { current: ReactDomRoot | null };
+  unmount?: boolean;
+}): void {
+  if (menuRootRef.current == null) {
+    return;
+  }
+  if (unmount) {
+    menuRootRef.current.unmount();
+    menuRootRef.current = null;
+  } else {
+    menuRootRef.current.render(null);
+  }
+  slotElement.style.display = 'none';
+}
+
+function injectSlotMarkup(containerHtml: string, slotMarkup: string): string {
+  return containerHtml.replace(
+    '</file-tree-container>',
+    `${slotMarkup}</file-tree-container>`
+  );
+}
+
+function DemoHeaderContent({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '8px 12px',
+        borderBottom:
+          '1px solid color-mix(in srgb, var(--color-border) 80%, transparent)',
+        background:
+          'linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 96%, white), color-mix(in srgb, var(--color-bg) 88%, white))',
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em' }}>
+          {label}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--color-fg-muted, #666)' }}>
+          Click to log and verify the slotted subtree hydrated
+        </div>
+      </div>
+      <button
+        type="button"
+        className="rounded-sm border px-2 py-1 text-xs"
+        style={{ borderColor: 'var(--color-border)' }}
+        onClick={onClick}
+      >
+        Log Header Click
+      </button>
+    </div>
+  );
+}
+
+function vanillaHeaderSlotMarkup(label: string): string {
+  return `
+    <div
+      slot="${HEADER_SLOT_NAME}"
+      style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid color-mix(in srgb, var(--color-border) 80%, transparent);background:linear-gradient(180deg, color-mix(in srgb, var(--color-bg) 96%, white), color-mix(in srgb, var(--color-bg) 88%, white));"
+    >
+      <div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:0.04em;">${label}</div>
+        <div style="font-size:12px;color:var(--color-fg-muted, #666);">Click to log and verify the slotted subtree hydrated</div>
+      </div>
+      <button
+        type="button"
+        data-demo-header-button="true"
+        class="rounded-sm border px-2 py-1 text-xs"
+        style="border-color:var(--color-border);"
+      >
+        Log Header Click
+      </button>
+    </div>
+  `;
+}
+
+/**
+ * Vanilla FileTree - Server-Side Rendered custom header slot
+ */
+function VanillaSSRHeaderSlot({
+  options,
+  stateConfig,
+  containerHtml,
+}: {
+  options: FileTreeOptions;
+  stateConfig?: FileTreeStateConfig;
+  containerHtml: string;
+}) {
+  const instanceRef = useRef<FileTree | null>(null);
+  const hasHydratedRef = useRef(false);
+  const { log, addLog } = useStateLog();
+  const containerHtmlWithHeader = useMemo(
+    () =>
+      injectSlotMarkup(
+        containerHtml,
+        vanillaHeaderSlotMarkup('Vanilla SSR Header')
+      ),
+    [containerHtml]
+  );
+
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node == null) {
+        return;
+      }
+
+      const fileTreeContainer = node.querySelector('file-tree-container');
+      if (!(fileTreeContainer instanceof HTMLElement)) return;
+
+      cleanupFileTreeInstance(fileTreeContainer, instanceRef);
+
+      const headerButton = fileTreeContainer.querySelector(
+        '[data-demo-header-button="true"]'
+      );
+      const handleHeaderClick = () => {
+        addLog('header: clicked');
+      };
+      headerButton?.addEventListener('click', handleHeaderClick);
+
+      const fileTree = new FileTree(options, stateConfig);
+
+      if (!hasHydratedRef.current) {
+        fileTree.hydrate({
+          fileTreeContainer,
+        });
+        hasHydratedRef.current = true;
+      } else {
+        fileTree.render({ fileTreeContainer });
+      }
+
+      instanceRef.current = fileTree;
+
+      return () => {
+        headerButton?.removeEventListener('click', handleHeaderClick);
+        fileTree.cleanUp();
+        instanceRef.current = null;
+      };
+    },
+    [addLog, options, stateConfig]
+  );
+
+  return (
+    <ExampleCard
+      title="Header Slot (Vanilla SSR)"
+      description="SSR markup includes a slotted light-DOM header; the click log verifies the imperative hydration path attached correctly"
+      footer={
+        <StateLog
+          entries={log}
+          className="mt-3 h-[96px] overflow-y-auto rounded border p-2 font-mono text-xs"
+        />
+      }
+    >
+      <div
+        ref={ref}
+        dangerouslySetInnerHTML={{ __html: containerHtmlWithHeader }}
+        suppressHydrationWarning
+      />
+    </ExampleCard>
+  );
+}
+
+/**
+ * React FileTree - Server-Side Rendered custom header slot
+ */
+function ReactSSRHeaderSlot({
+  options,
+  initialFiles,
+  stateConfig,
+  prerenderedHTML,
+}: {
+  options: Omit<FileTreeOptions, 'initialFiles'>;
+  initialFiles?: string[];
+  stateConfig?: FileTreeStateConfig;
+  prerenderedHTML: string;
+}) {
+  const { log, addLog } = useStateLog();
+
+  return (
+    <ExampleCard
+      title="Header Slot (React SSR)"
+      description="React server-renders the slotted header into the host element and hydrates its click handler on the client"
+      footer={
+        <StateLog
+          entries={log}
+          className="mt-3 h-[96px] overflow-y-auto rounded border p-2 font-mono text-xs"
+        />
+      }
+    >
+      <FileTreeReact
+        options={options}
+        initialFiles={initialFiles}
+        prerenderedHTML={prerenderedHTML}
+        initialExpandedItems={stateConfig?.initialExpandedItems}
+        onSelection={stateConfig?.onSelection}
+        header={
+          <DemoHeaderContent
+            label="React SSR Header"
+            onClick={() => addLog('header: clicked')}
+          />
+        }
+      />
+    </ExampleCard>
+  );
+}
+
+/**
+ * Vanilla FileTree - Server-Side Rendered context menu
+ */
+function VanillaSSRContextMenu({
+  options,
+  stateConfig,
+  containerHtml,
+}: {
+  options: FileTreeOptions;
+  stateConfig?: FileTreeStateConfig;
+  containerHtml: string;
+}) {
+  const instanceRef = useRef<FileTree | null>(null);
+  const hasHydratedRef = useRef(false);
+  const menuRootRef = useRef<ReactDomRoot | null>(null);
+
+  const ref = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (node == null) {
+        return;
+      }
+
+      const fileTreeContainer = node.querySelector('file-tree-container');
+      if (!(fileTreeContainer instanceof HTMLElement)) return;
+
+      cleanupFileTreeInstance(fileTreeContainer, instanceRef);
+
+      const slotElement = document.createElement('div');
+      slotElement.setAttribute('slot', CONTEXT_MENU_SLOT_NAME);
+      slotElement.style.display = 'none';
+      fileTreeContainer.appendChild(slotElement);
+
+      const closeMenu = () => {
+        clearVanillaContextMenuSlot({
+          slotElement,
+          menuRootRef,
+        });
+      };
+
+      const fileTree = new FileTree(options, {
+        ...stateConfig,
+        onContextMenuOpen: (item, context) => {
+          renderVanillaContextMenuSlot({
+            slotElement,
+            menuRootRef,
+            item,
+            onClose: context.close,
+          });
+        },
+        onContextMenuClose: () => {
+          closeMenu();
+        },
+      });
+
+      if (!hasHydratedRef.current) {
+        fileTree.hydrate({
+          fileTreeContainer,
+        });
+        hasHydratedRef.current = true;
+      } else {
+        fileTree.render({ fileTreeContainer });
+      }
+
+      instanceRef.current = fileTree;
+
+      return () => {
+        clearVanillaContextMenuSlot({
+          slotElement,
+          menuRootRef,
+          unmount: true,
+        });
+        slotElement.remove();
+        fileTree.cleanUp();
+        instanceRef.current = null;
+      };
+    },
+    [options, stateConfig]
+  );
+
+  return (
+    <div
+      ref={ref}
+      dangerouslySetInnerHTML={{ __html: containerHtml }}
+      suppressHydrationWarning
+    />
+  );
+}
+
+/**
+ * React FileTree - Server-Side Rendered context menu
+ */
+function ReactSSRContextMenu({
+  options,
+  initialFiles,
+  stateConfig,
+  prerenderedHTML,
+}: {
+  options: Omit<FileTreeOptions, 'initialFiles'>;
+  initialFiles?: string[];
+  stateConfig?: FileTreeStateConfig;
+  prerenderedHTML: string;
+}) {
+  return (
+    <FileTreeReact
+      options={options}
+      initialFiles={initialFiles}
+      prerenderedHTML={prerenderedHTML}
+      initialExpandedItems={stateConfig?.initialExpandedItems}
+      onSelection={stateConfig?.onSelection}
+      renderContextMenu={(item, context) => (
+        <TreeDemoContextMenu item={item} onClose={context.close} />
+      )}
+    />
+  );
+}
+
 /**
  * Virtualized vanilla FileTree with the full Linux kernel file list.
  * Gated behind a button so the page loads quickly.
  */
 function VirtualizedLinuxKernelCard() {
   const [mounted, setMounted] = useState(false);
+  const menuRootRef = useRef<ReactDomRoot | null>(null);
 
   const ref = useCallback((node: HTMLDivElement | null) => {
     if (node == null) return;
+
+    const slotElement = document.createElement('div');
+    slotElement.setAttribute('slot', CONTEXT_MENU_SLOT_NAME);
+    slotElement.style.display = 'none';
+
     const fileTree = new FileTree(
       {
         initialFiles: linuxKernelFiles,
@@ -1804,10 +2306,40 @@ function VirtualizedLinuxKernelCard() {
         flattenEmptyDirectories: true,
         sort: false,
       },
-      { initialExpandedItems: linuxKernelAllFolders }
+      {
+        initialExpandedItems: linuxKernelAllFolders,
+        onContextMenuOpen: (item, context) => {
+          renderVanillaContextMenuSlot({
+            slotElement,
+            menuRootRef,
+            item,
+            onClose: context.close,
+          });
+        },
+        onContextMenuClose: () => {
+          clearVanillaContextMenuSlot({
+            slotElement,
+            menuRootRef,
+          });
+        },
+      }
     );
     fileTree.render({ containerWrapper: node });
-    return () => fileTree.cleanUp();
+
+    const container = fileTree.getFileTreeContainer();
+    if (container != null) {
+      container.appendChild(slotElement);
+    }
+
+    return () => {
+      clearVanillaContextMenuSlot({
+        slotElement,
+        menuRootRef,
+        unmount: true,
+      });
+      slotElement.remove();
+      fileTree.cleanUp();
+    };
   }, []);
 
   return (

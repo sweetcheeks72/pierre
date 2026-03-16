@@ -53,10 +53,19 @@ Object.assign(globalThis, { CSSStyleSheet: MockCSSStyleSheet });
 // Imports (after globals are set up)
 // ---------------------------------------------------------------------------
 
-import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  spyOn,
+  test,
+} from 'bun:test';
 import { useMemo, useState } from 'react';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 
 import {
   FileTree as FileTreeClass,
@@ -93,6 +102,15 @@ const setFilesSpy = spyOn(
   'setFiles'
 ).mockImplementation(() => {});
 
+const resetMethodMocks = (): void => {
+  renderSpy.mockImplementation(() => {});
+  cleanUpSpy.mockImplementation(() => {});
+  setExpandedSpy.mockImplementation(() => {});
+  setSelectedSpy.mockImplementation(() => {});
+  setCallbacksSpy.mockImplementation(() => {});
+  setFilesSpy.mockImplementation(() => {});
+};
+
 const requireCapturedStateConfig = (
   value: FileTreeStateConfig | null
 ): FileTreeStateConfig => {
@@ -113,6 +131,7 @@ describe('React controlled FileTree wrapper', () => {
   let root: Root;
 
   beforeEach(() => {
+    resetMethodMocks();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -129,6 +148,15 @@ describe('React controlled FileTree wrapper', () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  afterAll(() => {
+    renderSpy.mockRestore();
+    cleanUpSpy.mockRestore();
+    setExpandedSpy.mockRestore();
+    setSelectedSpy.mockRestore();
+    setCallbacksSpy.mockRestore();
+    setFilesSpy.mockRestore();
   });
 
   // -- Mount / unmount --
@@ -461,5 +489,187 @@ describe('React controlled FileTree wrapper', () => {
     expect(setCallbacksSpy).toHaveBeenCalledWith(
       expect.objectContaining({ onFilesChange })
     );
+  });
+
+  // -- Context menu --
+
+  test('passes context menu callbacks via setCallbacks when renderContextMenu is provided', () => {
+    const renderCtx = () => null;
+
+    act(() => {
+      root.render(
+        <FileTreeReact
+          options={{}}
+          files={FILES}
+          renderContextMenu={renderCtx}
+        />
+      );
+    });
+
+    // When renderContextMenu is provided, onContextMenuOpen and onContextMenuClose
+    // should be wired through setCallbacks
+    expect(setCallbacksSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onContextMenuOpen: expect.any(Function),
+        onContextMenuClose: expect.any(Function),
+      })
+    );
+  });
+
+  test('does NOT pass context menu callbacks when renderContextMenu is not provided', () => {
+    act(() => {
+      root.render(<FileTreeReact options={{}} files={FILES} />);
+    });
+
+    // Without renderContextMenu, context menu callbacks should be undefined
+    const lastCall = setCallbacksSpy.mock.calls.at(-1)?.[0];
+    expect(lastCall?.onContextMenuOpen).toBeUndefined();
+    expect(lastCall?.onContextMenuClose).toBeUndefined();
+  });
+
+  test('passes onContextMenuOpen callback without renderContextMenu', () => {
+    const onContextMenuOpen = () => {};
+
+    act(() => {
+      root.render(
+        <FileTreeReact
+          options={{}}
+          files={FILES}
+          onContextMenuOpen={onContextMenuOpen}
+        />
+      );
+    });
+
+    expect(setCallbacksSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        onContextMenuOpen: expect.any(Function),
+      })
+    );
+  });
+
+  test('server-renders a slotted header child when header is provided', () => {
+    const originalWindow = globalThis.window;
+    Reflect.deleteProperty(globalThis, 'window');
+
+    try {
+      const html = renderToString(
+        <FileTreeReact
+          options={{}}
+          initialFiles={FILES}
+          prerenderedHTML={'<div data-file-tree-id="ft_srv_test"></div>'}
+          header={<button data-test-header>Header action</button>}
+        />
+      );
+
+      expect(html).toContain('slot="header"');
+      expect(html).toContain('data-test-header');
+      expect(html).toContain('Header action');
+    } finally {
+      Object.assign(globalThis, { window: originalWindow });
+    }
+  });
+
+  test('renders slot div as child when renderContextMenu callback fires', () => {
+    let capturedOpen:
+      | ((
+          item: { path: string; isFolder: boolean },
+          context: {
+            anchorElement: HTMLElement;
+            anchorRect: {
+              top: number;
+              right: number;
+              bottom: number;
+              left: number;
+              width: number;
+              height: number;
+              x: number;
+              y: number;
+            };
+            close: () => void;
+          }
+        ) => void)
+      | undefined;
+    renderSpy.mockImplementation(function (this: FileTreeClass) {
+      // Capture the onContextMenuOpen callback from stateConfig
+      capturedOpen = this.callbacksRef.current.onContextMenuOpen;
+    });
+
+    act(() => {
+      root.render(
+        <FileTreeReact
+          options={{}}
+          files={FILES}
+          renderContextMenu={(item) => <div data-test-menu>{item.path}</div>}
+        />
+      );
+    });
+
+    // After setCallbacks fires, grab the latest callback
+    const lastSetCallbacksCall = setCallbacksSpy.mock.calls.at(-1)?.[0];
+    const onOpen = capturedOpen ?? lastSetCallbacksCall?.onContextMenuOpen;
+
+    if (onOpen != null) {
+      act(() => {
+        onOpen(
+          { path: 'README.md', isFolder: false },
+          {
+            anchorElement: container,
+            anchorRect: {
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              width: 0,
+              height: 0,
+              x: 0,
+              y: 0,
+            },
+            close: () => {},
+          }
+        );
+      });
+    }
+
+    // The container should now have a child with slot="context-menu"
+    const slotEl = container.querySelector('[slot="context-menu"]');
+    expect(slotEl).not.toBeNull();
+    expect(slotEl?.querySelector('[data-test-menu]')).not.toBeNull();
+
+    renderSpy.mockImplementation(() => {});
+  });
+
+  test('renders and clears slotted header content in containerId mode', () => {
+    const host = document.createElement('file-tree-container');
+    host.id = 'existing-file-tree';
+    document.body.appendChild(host);
+
+    try {
+      act(() => {
+        root.render(
+          <FileTreeReact
+            options={{}}
+            files={FILES}
+            containerId={host.id}
+            header={<button data-test-header>Header action</button>}
+          />
+        );
+      });
+
+      const slotEl = host.querySelector('[slot="header"]');
+      expect(slotEl).not.toBeNull();
+      expect(slotEl?.querySelector('[data-test-header]')?.textContent).toBe(
+        'Header action'
+      );
+
+      act(() => {
+        root.render(
+          <FileTreeReact options={{}} files={FILES} containerId={host.id} />
+        );
+      });
+
+      expect(host.querySelector('[slot="header"]')).toBeNull();
+    } finally {
+      host.remove();
+    }
   });
 });

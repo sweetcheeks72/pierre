@@ -7,7 +7,12 @@ import {
   FLATTENED_PREFIX,
 } from './constants';
 import { SVGSpriteSheet } from './sprite';
-import type { FileTreeNode, GitStatusEntry } from './types';
+import type {
+  ContextMenuItem,
+  ContextMenuOpenContext,
+  FileTreeNode,
+  GitStatusEntry,
+} from './types';
 import { wrapUnsafeCSS } from './utils/cssWrappers';
 import { expandImplicitParentDirectories } from './utils/expandImplicitParentDirectories';
 import {
@@ -60,6 +65,7 @@ export interface FileTreeHandle {
   tree: TreeInstance<FileTreeNode>;
   pathToId: Map<string, string>;
   idToPath: Map<string, string>;
+  closeContextMenu?: () => void;
 }
 
 export interface FileTreeCallbacks {
@@ -67,6 +73,11 @@ export interface FileTreeCallbacks {
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onContextMenuOpen?: (
+    item: ContextMenuItem,
+    context: ContextMenuOpenContext
+  ) => void;
+  onContextMenuClose?: () => void;
   /** Internal: called when a DnD move produces a new file list. */
   _onDragMoveFiles?: (newFiles: string[]) => void;
 }
@@ -128,6 +139,11 @@ export interface FileTreeStateConfig {
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onContextMenuOpen?: (
+    item: ContextMenuItem,
+    context: ContextMenuOpenContext
+  ) => void;
+  onContextMenuClose?: () => void;
 }
 
 const isBrowser = typeof document !== 'undefined';
@@ -166,6 +182,8 @@ export class FileTree {
         onSelectedItemsChange: stateConfig.onSelectedItemsChange,
         onSelection: stateConfig.onSelection,
         onFilesChange: stateConfig.onFilesChange,
+        onContextMenuOpen: stateConfig.onContextMenuOpen,
+        onContextMenuClose: stateConfig.onContextMenuClose,
         _onDragMoveFiles:
           options.dragAndDrop === true
             ? (newFiles) => this.setFiles(newFiles)
@@ -360,7 +378,12 @@ export class FileTree {
   // --- Callbacks ---
 
   setCallbacks(callbacks: Partial<FileTreeCallbacks>): void {
+    const hadContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
     Object.assign(this.callbacksRef.current, callbacks);
+    const hasContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
+    if (hadContextMenu !== hasContextMenu) {
+      this.rerender();
+    }
   }
 
   // --- Git status ---
@@ -393,6 +416,8 @@ export class FileTree {
     options: Partial<FileTreeOptions>,
     state?: Partial<FileTreeStateConfig>
   ): void {
+    const hadContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
+
     if (options.dragAndDrop === false) {
       this.callbacksRef.current._onDragMoveFiles = undefined;
     } else if (
@@ -417,6 +442,12 @@ export class FileTree {
     }
     if (state?.onFilesChange !== undefined) {
       this.callbacksRef.current.onFilesChange = state.onFilesChange;
+    }
+    if (state?.onContextMenuOpen !== undefined) {
+      this.callbacksRef.current.onContextMenuOpen = state.onContextMenuOpen;
+    }
+    if (state?.onContextMenuClose !== undefined) {
+      this.callbacksRef.current.onContextMenuClose = state.onContextMenuClose;
     }
 
     // Check if structural props changed (require re-render)
@@ -452,6 +483,11 @@ export class FileTree {
     };
     if (state != null) {
       this.stateConfig = { ...this.stateConfig, ...state };
+    }
+
+    const hasContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
+    if (hadContextMenu !== hasContextMenu) {
+      needsRerender = true;
     }
 
     if (needsRerender || stateFilesChanged) {
@@ -619,16 +655,21 @@ export class FileTree {
       return;
     }
 
+    const isUnsafeStyleElement = (
+      element: Element | null | undefined
+    ): element is HTMLStyleElement =>
+      element != null &&
+      element.tagName === 'STYLE' &&
+      element.hasAttribute(FILE_TREE_UNSAFE_CSS_ATTRIBUTE);
+
     let unsafeStyle =
-      this.unsafeCSSStyle instanceof HTMLStyleElement &&
+      isUnsafeStyleElement(this.unsafeCSSStyle) &&
       this.unsafeCSSStyle.parentNode === shadowRoot
         ? this.unsafeCSSStyle
         : undefined;
 
     unsafeStyle ??= Array.from(shadowRoot.children).find(
-      (element): element is HTMLStyleElement =>
-        element instanceof HTMLStyleElement &&
-        element.hasAttribute(FILE_TREE_UNSAFE_CSS_ATTRIBUTE)
+      (element): element is HTMLStyleElement => isUnsafeStyleElement(element)
     );
 
     const unsafeCSS = this.options.unsafeCSS?.trim() ?? '';
