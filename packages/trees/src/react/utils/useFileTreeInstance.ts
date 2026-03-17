@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import {
   FileTree,
+  type FileTreeEditSession,
   type FileTreeOptions,
   type FileTreeSelectionItem,
   type FileTreeStateConfig,
@@ -28,9 +29,11 @@ interface UseFileTreeInstanceProps {
   // Controlled state
   expandedItems?: string[];
   selectedItems?: string[];
+  editSession?: FileTreeEditSession | null;
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
+  onEditSessionChange?: (session: FileTreeEditSession | null) => void;
 
   // Context menu
   onContextMenuOpen?: (
@@ -57,9 +60,11 @@ export function useFileTreeInstance({
   initialSearchQuery,
   expandedItems,
   selectedItems,
+  editSession,
   onExpandedItemsChange,
   onSelectedItemsChange,
   onSelection,
+  onEditSessionChange,
   onContextMenuOpen,
   onContextMenuClose,
   gitStatus,
@@ -84,11 +89,13 @@ export function useFileTreeInstance({
     files,
     initialFiles,
     onFilesChange,
+    editSession,
     expandedItems,
     selectedItems,
     onExpandedItemsChange,
     onSelectedItemsChange,
     onSelection,
+    onEditSessionChange,
     initialExpandedItems,
     initialSelectedItems,
     gitStatus,
@@ -100,11 +107,13 @@ export function useFileTreeInstance({
     files,
     initialFiles,
     onFilesChange,
+    editSession,
     expandedItems,
     selectedItems,
     onExpandedItemsChange,
     onSelectedItemsChange,
     onSelection,
+    onEditSessionChange,
     initialExpandedItems,
     initialSelectedItems,
     gitStatus,
@@ -182,10 +191,12 @@ export function useFileTreeInstance({
             initialExpandedItems: sp.initialExpandedItems ?? sp.expandedItems,
             initialSelectedItems: sp.initialSelectedItems ?? sp.selectedItems,
             initialSearchQuery: sp.initialSearchQuery,
+            editSession: sp.editSession,
             onExpandedItemsChange: sp.onExpandedItemsChange,
             onSelectedItemsChange: sp.onSelectedItemsChange,
             onSelection: sp.onSelection,
             onFilesChange: sp.onFilesChange,
+            onEditSessionChange: sp.onEditSessionChange,
             onContextMenuOpen: sp.onContextMenuOpen,
             onContextMenuClose: sp.onContextMenuClose,
           }
@@ -198,6 +209,20 @@ export function useFileTreeInstance({
           inst.setCallbacks({
             _onDragMoveFiles: (newFiles) => {
               sp.onFilesChange?.(newFiles);
+            },
+          });
+        }
+        if (sp.files !== undefined) {
+          inst.setCallbacks({
+            _onEditMutateFiles: (newFiles) => {
+              sp.onFilesChange?.(newFiles);
+            },
+          });
+        }
+        if (sp.editSession !== undefined) {
+          inst.setCallbacks({
+            _onEditSessionChange: (session) => {
+              sp.onEditSessionChange?.(session);
             },
           });
         }
@@ -269,6 +294,13 @@ export function useFileTreeInstance({
     }
   }, [selectedItems]);
 
+  // Sync controlled edit session imperatively (no tree recreation)
+  useEffect(() => {
+    if (editSession !== undefined && instanceRef.current != null) {
+      instanceRef.current.setEditSession(editSession);
+    }
+  }, [editSession]);
+
   const gitStatusSignature = getGitStatusSignature(gitStatus);
 
   // Sync controlled git status
@@ -289,6 +321,7 @@ export function useFileTreeInstance({
       onSelectedItemsChange,
       onSelection,
       onFilesChange,
+      onEditSessionChange,
       onContextMenuOpen,
       onContextMenuClose,
       // In controlled DnD mode, override to only fire onFilesChange
@@ -299,15 +332,27 @@ export function useFileTreeInstance({
             onFilesChange?.(newFiles);
           },
         }),
+      ...(files !== undefined && {
+        _onEditMutateFiles: (newFiles) => {
+          onFilesChange?.(newFiles);
+        },
+      }),
+      ...(editSession !== undefined && {
+        _onEditSessionChange: (session) => {
+          onEditSessionChange?.(session);
+        },
+      }),
     });
   }, [
     onExpandedItemsChange,
     onSelectedItemsChange,
     onSelection,
     onFilesChange,
+    onEditSessionChange,
     onContextMenuOpen,
     onContextMenuClose,
     files,
+    editSession,
     options.dragAndDrop,
   ]);
 

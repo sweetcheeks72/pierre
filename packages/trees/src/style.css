@@ -352,6 +352,14 @@
     &[data-item-search-match='true'] {
       font-weight: var(--trees-search-font-weight);
     }
+
+    &[data-item-editing='true'] {
+      cursor: text;
+    }
+
+    &[data-item-invalid='true'] {
+      outline-color: var(--trees-git-status-deleted);
+    }
   }
 
   /* Flattened Directory Parts */
@@ -394,6 +402,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  [data-item-edit-input] {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
+    padding: 0;
+    min-width: 0;
   }
 
   [data-item-section='status'] {

@@ -17,6 +17,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useState,
 } from 'preact/hooks';
 
 import {
@@ -49,6 +50,11 @@ import { generateLazyDataLoader } from '../loader/lazy';
 import { generateSyncDataLoaderFromTreeData } from '../loader/sync';
 import type { SVGSpriteNames } from '../sprite';
 import type { FileTreeNode } from '../types';
+import {
+  computeFilesAfterCreatingFile,
+  computeFilesAfterRename,
+  normalizeDraftName,
+} from '../utils/computeEditedFiles';
 import { computeNewFilesAfterDrop } from '../utils/computeNewFilesAfterDrop';
 import { controlledExpandedPathsToExpandedIds } from '../utils/controlledExpandedState';
 import {
@@ -97,6 +103,11 @@ const getFilesSignature = (files: string[]): string =>
   `${files.length}\0${files.join('\0')}`;
 
 const EMPTY_ANCESTORS: string[] = [];
+
+const getBasename = (path: string): string => {
+  const slash = path.lastIndexOf('/');
+  return slash === -1 ? path : path.slice(slash + 1);
+};
 
 function FlattenedDirectoryName({
   tree,
@@ -355,6 +366,116 @@ function TreeItemInner({
 }
 
 const TreeItem = memo(TreeItemInner, treeItemPropsAreEqual);
+
+interface InlineEditorItemProps {
+  ancestors: string[];
+  initialValue: string;
+  isFolder: boolean;
+  level: number;
+  onCancel: () => void;
+  onCommit: (draft: string) => boolean;
+  remapIcon: (name: SVGSpriteNames) => {
+    name: string;
+    remappedFrom?: string;
+    width?: number;
+    height?: number;
+    viewBox?: string;
+  };
+}
+
+function InlineEditorItem({
+  ancestors,
+  initialValue,
+  isFolder,
+  level,
+  onCancel,
+  onCommit,
+  remapIcon,
+}: InlineEditorItemProps): JSX.Element {
+  'use no memo';
+  const [draft, setDraft] = useState(initialValue);
+  const [isInvalid, setIsInvalid] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setDraft(initialValue);
+    setIsInvalid(false);
+  }, [initialValue]);
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (input == null) return;
+    input.focus();
+    input.select();
+  }, []);
+
+  const handleCommit = useCallback(() => {
+    const nextDraft = normalizeDraftName(draft);
+    const didCommit = onCommit(nextDraft);
+    if (!didCommit) {
+      setIsInvalid(true);
+    }
+  }, [draft, onCommit]);
+
+  return (
+    <div
+      data-type="item"
+      data-item-editing="true"
+      data-item-focused="true"
+      data-item-selected="true"
+      data-item-invalid={isInvalid ? 'true' : undefined}
+      data-item-type={isFolder ? 'folder' : 'file'}
+    >
+      {level > 0 ? (
+        <div data-item-section="spacing">
+          {Array.from({ length: level }).map((_, index) => (
+            <div
+              key={index}
+              data-item-section="spacing-item"
+              data-ancestor-id={ancestors[index]}
+            />
+          ))}
+        </div>
+      ) : null}
+      <div data-item-section="icon">
+        <Icon
+          {...remapIcon(
+            isFolder ? 'file-tree-icon-chevron' : 'file-tree-icon-file'
+          )}
+        />
+      </div>
+      <div data-item-section="content">
+        <input
+          ref={inputRef}
+          data-item-edit-input
+          aria-label={isFolder ? 'Rename folder' : 'Edit file name'}
+          value={draft}
+          onInput={(event) => {
+            setDraft((event.currentTarget).value);
+            if (isInvalid) {
+              setIsInvalid(false);
+            }
+          }}
+          onBlur={() => onCancel()}
+          onClick={(event) => event.stopPropagation()}
+          onDblClick={(event: MouseEvent) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              handleCommit();
+              return;
+            }
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
 
 export function Root({
   fileTreeOptions,
@@ -866,7 +987,7 @@ export function Root({
     ...(isDnD && {
       canReorder: false,
       canDrag: (items: ItemInstance<FileTreeNode>[]) => {
-        if (searchActiveRef.current) return false;
+        if (searchActiveRef.current || editingActiveRef.current) return false;
         if (lockedPaths == null || lockedPaths.length === 0) return true;
         const lockedSet = new Set(lockedPaths);
         for (const item of items) {
@@ -919,7 +1040,7 @@ export function Root({
     openContextMenuForItem,
     handleTriggerClick,
     handleContextMenuKeyDown,
-    handleTreeKeyDownCapture,
+    handleTreeKeyDownCapture: handleContextMenuTreeKeyDownCapture,
     handleTreePointerOver,
     handleTreePointerLeave,
     handleWashMouseDownCapture,
@@ -938,6 +1059,118 @@ export function Root({
 
   const focusedItemId = tree.getState().focusedItem ?? null;
   const hasFocusedItem = focusedItemId != null;
+  const activeEditSession = stateConfig?.editSession ?? null;
+  const editingActive = activeEditSession != null;
+  const editingActiveRef = useRef(editingActive);
+  editingActiveRef.current = editingActive;
+
+  const getTreeIdForPath = useCallback(
+    (path: string): string | undefined => {
+      if (path.startsWith(FLATTENED_PREFIX)) {
+        return pathToId.get(path);
+      }
+      if (flattenEmptyDirectories === true) {
+        return pathToId.get(FLATTENED_PREFIX + path) ?? pathToId.get(path);
+      }
+      return pathToId.get(path);
+    },
+    [flattenEmptyDirectories, pathToId]
+  );
+
+  const activeEditTargetId =
+    activeEditSession?.kind === 'rename'
+      ? getTreeIdForPath(activeEditSession.targetPath)
+      : activeEditSession?.kind === 'new-file' &&
+          activeEditSession.parentPath != null
+        ? getTreeIdForPath(activeEditSession.parentPath)
+        : undefined;
+
+  const cancelInlineEditing = useCallback(() => {
+    callbacksRef?.current._onEditSessionChange?.(null);
+  }, [callbacksRef]);
+
+  const commitInlineEditing = useCallback(
+    (draft: string): boolean => {
+      if (activeEditSession == null) {
+        return false;
+      }
+
+      const nextFiles =
+        activeEditSession.kind === 'rename'
+          ? computeFilesAfterRename(files, activeEditSession.targetPath, draft)
+          : computeFilesAfterCreatingFile(
+              files,
+              activeEditSession.parentPath ?? '',
+              draft
+            );
+
+      if (nextFiles == null) {
+        return false;
+      }
+
+      callbacksRef?.current._onEditMutateFiles?.(nextFiles);
+      callbacksRef?.current._onEditSessionChange?.(null);
+      return true;
+    },
+    [activeEditSession, callbacksRef, files]
+  );
+
+  useEffect(() => {
+    if (!editingActive) {
+      return;
+    }
+    closeContextMenu?.();
+    if ((tree.getState().search?.length ?? 0) > 0) {
+      tree.setSearch('');
+    }
+  }, [closeContextMenu, editingActive, tree]);
+
+  const handleTreeKeyDownCapture = useCallback(
+    (event: KeyboardEvent) => {
+      if (!editingActive && event.key === 'F2' && focusedItemId != null) {
+        const focusedPath = idToPath.get(focusedItemId);
+        if (focusedPath != null) {
+          event.preventDefault();
+          event.stopPropagation();
+          callbacksRef?.current._onEditSessionChange?.({
+            kind: 'rename',
+            targetPath: getSelectionPath(focusedPath),
+          });
+          return;
+        }
+      }
+      handleContextMenuTreeKeyDownCapture(event);
+    },
+    [
+      callbacksRef,
+      editingActive,
+      focusedItemId,
+      handleContextMenuTreeKeyDownCapture,
+      idToPath,
+    ]
+  );
+
+  useEffect(() => {
+    if (
+      activeEditSession?.kind !== 'new-file' ||
+      activeEditTargetId == null ||
+      activeEditTargetId === 'root'
+    ) {
+      return;
+    }
+    const expandedItems = tree.getState().expandedItems ?? [];
+    if (expandedItems.includes(activeEditTargetId)) {
+      return;
+    }
+    tree.applySubStateUpdate('expandedItems', (previous) => {
+      const nextExpandedItems = previous ?? [];
+      if (nextExpandedItems.includes(activeEditTargetId)) {
+        return nextExpandedItems;
+      }
+      return [...nextExpandedItems, activeEditTargetId];
+    });
+    tree.rebuildTree();
+  }, [activeEditSession, activeEditTargetId, tree]);
 
   // Detect stale expanded IDs when the file list changes. Flattened chains
   // may break or form, causing node IDs to change. We snapshot the expanded
@@ -1211,8 +1444,54 @@ export function Root({
             ? new Set(lockedPaths)
             : null;
 
+        let newFileInsertIndex: number | null = null;
+        let newFileLevel = 0;
+        let newFileAncestors: string[] = EMPTY_ANCESTORS;
+        if (activeEditSession?.kind === 'new-file') {
+          if (activeEditTargetId == null) {
+            newFileInsertIndex = 0;
+          } else {
+            for (let index = 0; index < items.length; index++) {
+              const candidate = items[index];
+              if (candidate?.getId() !== activeEditTargetId) {
+                continue;
+              }
+              newFileInsertIndex = index + 1;
+              newFileLevel = candidate.getItemMeta().level + 1;
+              newFileAncestors = [
+                ...getAncestors(candidate.getId()),
+                candidate.getId(),
+              ];
+              break;
+            }
+          }
+        }
+
         const renderItemAtIndex = (index: number) => {
-          const item = items[index];
+          if (
+            activeEditSession?.kind === 'new-file' &&
+            newFileInsertIndex === index
+          ) {
+            return (
+              <InlineEditorItem
+                key="__file_tree_new_file__"
+                ancestors={newFileAncestors}
+                initialValue={activeEditSession.draftName ?? 'untitled.tsx'}
+                isFolder={false}
+                level={newFileLevel}
+                onCancel={cancelInlineEditing}
+                onCommit={commitInlineEditing}
+                remapIcon={remapIcon}
+              />
+            );
+          }
+          const itemIndex =
+            activeEditSession?.kind === 'new-file' &&
+            newFileInsertIndex != null &&
+            index > newFileInsertIndex
+              ? index - 1
+              : index;
+          const item = items[itemIndex];
           if (item == null) {
             return null;
           }
@@ -1243,6 +1522,27 @@ export function Root({
             hasChildren &&
             (gitStatusMap?.foldersWithChanges.has(item.getId()) ?? false);
           const ancestors = getAncestors(item.getId());
+
+          if (
+            activeEditSession?.kind === 'rename' &&
+            activeEditTargetId === item.getId()
+          ) {
+            return (
+              <InlineEditorItem
+                key={item.getId()}
+                ancestors={ancestors}
+                initialValue={
+                  activeEditSession.draftName ??
+                  getBasename(itemPath ?? itemName)
+                }
+                isFolder={hasChildren}
+                level={level}
+                onCancel={cancelInlineEditing}
+                onCommit={commitInlineEditing}
+                remapIcon={remapIcon}
+              />
+            );
+          }
 
           return (
             <TreeItem
@@ -1298,8 +1598,14 @@ export function Root({
           </div>
         ) : null;
 
+        const shouldVirtualizeItems = shouldVirtualize && !editingActive;
+        const renderedItemCount =
+          activeEditSession?.kind === 'new-file' && newFileInsertIndex != null
+            ? items.length + 1
+            : items.length;
+
         if (
-          shouldVirtualize &&
+          shouldVirtualizeItems &&
           items.length > 0 &&
           items.length >= virtualizeThreshold
         ) {
@@ -1310,7 +1616,7 @@ export function Root({
           return (
             <div data-file-tree-virtualized-scroll="true">
               <VirtualizedList
-                itemCount={items.length}
+                itemCount={renderedItemCount}
                 renderItem={renderItemAtIndex}
                 scrollToIndex={
                   focusedIndex != null && focusedIndex >= 0
@@ -1325,7 +1631,9 @@ export function Root({
 
         return (
           <>
-            {items.map((_, i) => renderItemAtIndex(i))}
+            {Array.from({ length: renderedItemCount }).map((_, i) =>
+              renderItemAtIndex(i)
+            )}
             {contextMenuTrigger}
           </>
         );

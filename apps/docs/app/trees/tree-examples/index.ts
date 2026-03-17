@@ -1,6 +1,7 @@
 export { A11ySection } from './A11ySection';
 export { CustomIconsSection } from './CustomIconsSection';
 export { DragDropSection } from './DragDropSection';
+export { DynamicFilesSection } from './DynamicFilesSection';
 export { FlatteningSection } from './FlatteningSection';
 export { GitStatusSection } from './GitStatusSection';
 export { SearchSection } from './SearchSection';

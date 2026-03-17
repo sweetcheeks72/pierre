@@ -101,6 +101,10 @@ const setFilesSpy = spyOn(
   FileTreeClass.prototype,
   'setFiles'
 ).mockImplementation(() => {});
+const setEditSessionSpy = spyOn(
+  FileTreeClass.prototype,
+  'setEditSession'
+).mockImplementation(() => {});
 
 const resetMethodMocks = (): void => {
   renderSpy.mockImplementation(() => {});
@@ -109,6 +113,7 @@ const resetMethodMocks = (): void => {
   setSelectedSpy.mockImplementation(() => {});
   setCallbacksSpy.mockImplementation(() => {});
   setFilesSpy.mockImplementation(() => {});
+  setEditSessionSpy.mockImplementation(() => {});
 };
 
 const requireCapturedStateConfig = (
@@ -141,6 +146,7 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockClear();
     setCallbacksSpy.mockClear();
     setFilesSpy.mockClear();
+    setEditSessionSpy.mockClear();
   });
 
   afterEach(() => {
@@ -157,6 +163,7 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockRestore();
     setCallbacksSpy.mockRestore();
     setFilesSpy.mockRestore();
+    setEditSessionSpy.mockRestore();
   });
 
   // -- Mount / unmount --
@@ -265,6 +272,47 @@ describe('React controlled FileTree wrapper', () => {
     });
 
     expect(setSelectedSpy).toHaveBeenCalledWith(['README.md']);
+  });
+
+  test('calls setEditSession when editSession prop changes', () => {
+    let setEditSession!: (
+      session:
+        | { kind: 'rename'; targetPath: string }
+        | { kind: 'new-file'; parentPath?: string }
+        | null
+    ) => void;
+
+    function Harness() {
+      const [editSession, setter] = useState<
+        | { kind: 'rename'; targetPath: string }
+        | { kind: 'new-file'; parentPath?: string }
+        | null
+      >(null);
+      setEditSession = setter;
+      return (
+        <FileTreeReact
+          options={{}}
+          files={FILES}
+          editSession={editSession}
+          onEditSessionChange={setter}
+        />
+      );
+    }
+
+    act(() => {
+      root.render(<Harness />);
+    });
+
+    setEditSessionSpy.mockClear();
+
+    act(() => {
+      setEditSession({ kind: 'rename', targetPath: 'README.md' });
+    });
+
+    expect(setEditSessionSpy).toHaveBeenCalledWith({
+      kind: 'rename',
+      targetPath: 'README.md',
+    });
   });
 
   // -- Callbacks --
@@ -488,6 +536,24 @@ describe('React controlled FileTree wrapper', () => {
 
     expect(setCallbacksSpy).toHaveBeenCalledWith(
       expect.objectContaining({ onFilesChange })
+    );
+  });
+
+  test('passes onEditSessionChange callback via setCallbacks', () => {
+    const onEditSessionChange = () => {};
+
+    act(() => {
+      root.render(
+        <FileTreeReact
+          options={{}}
+          files={FILES}
+          onEditSessionChange={onEditSessionChange}
+        />
+      );
+    });
+
+    expect(setCallbacksSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ onEditSessionChange })
     );
   });
 

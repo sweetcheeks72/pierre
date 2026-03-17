@@ -57,12 +57,14 @@ export const REACT_API_FILE_TREE_PROPS: PreloadFileOptions<undefined> = {
   // files={controlledFiles}
   // expandedItems={controlledExpanded}
   // selectedItems={controlledSelected}
+  // editSession={activeEditSession}
 
   // Optional: state change callbacks
   onSelection={(items) => console.log(items)}
   onExpandedItemsChange={(items) => console.log('expanded', items)}
   onSelectedItemsChange={(items) => console.log('selected', items)}
   onFilesChange={(files) => console.log('files', files)}
+  onEditSessionChange={(session) => console.log('editSession', session)}
 
   // Optional: git status
   gitStatus={gitStatusEntries}

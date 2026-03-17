@@ -13,6 +13,7 @@ import type {
   FileTreeNode,
   GitStatusEntry,
 } from './types';
+import type { FileTreeEditSession } from './utils/computeEditedFiles';
 import { wrapUnsafeCSS } from './utils/cssWrappers';
 import { expandImplicitParentDirectories } from './utils/expandImplicitParentDirectories';
 import {
@@ -29,6 +30,7 @@ import {
 import type { ChildrenComparator } from './utils/sortChildren';
 
 export type { GitStatusEntry } from './types';
+export type { FileTreeEditSession } from './utils/computeEditedFiles';
 
 let instanceId = -1;
 
@@ -73,6 +75,7 @@ export interface FileTreeCallbacks {
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
     context: ContextMenuOpenContext
@@ -80,6 +83,10 @@ export interface FileTreeCallbacks {
   onContextMenuClose?: () => void;
   /** Internal: called when a DnD move produces a new file list. */
   _onDragMoveFiles?: (newFiles: string[]) => void;
+  /** Internal: called when inline editing produces a new file list. */
+  _onEditMutateFiles?: (newFiles: string[]) => void;
+  /** Internal: updates the active edit session. */
+  _onEditSessionChange?: (session: FileTreeEditSession | null) => void;
 }
 
 type RemappedIcon =
@@ -133,12 +140,14 @@ export interface FileTreeStateConfig {
   expandedItems?: string[];
   selectedItems?: string[];
   files?: string[];
+  editSession?: FileTreeEditSession | null;
 
   // State change callbacks
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
     context: ContextMenuOpenContext
@@ -182,12 +191,18 @@ export class FileTree {
         onSelectedItemsChange: stateConfig.onSelectedItemsChange,
         onSelection: stateConfig.onSelection,
         onFilesChange: stateConfig.onFilesChange,
+        onEditSessionChange: stateConfig.onEditSessionChange,
         onContextMenuOpen: stateConfig.onContextMenuOpen,
         onContextMenuClose: stateConfig.onContextMenuClose,
         _onDragMoveFiles:
           options.dragAndDrop === true
             ? (newFiles) => this.setFiles(newFiles)
             : undefined,
+        _onEditMutateFiles: (newFiles) => this.setFiles(newFiles),
+        _onEditSessionChange: (session) => {
+          this.applyEditSession(session);
+          this.callbacksRef.current.onEditSessionChange?.(session);
+        },
       },
     };
   }
@@ -375,6 +390,39 @@ export class FileTree {
       );
   }
 
+  private applyEditSession(session: FileTreeEditSession | null): void {
+    this.stateConfig = { ...this.stateConfig, editSession: session };
+    this.rerender();
+  }
+
+  setEditSession(session: FileTreeEditSession | null): void {
+    this.applyEditSession(session);
+  }
+
+  getEditSession(): FileTreeEditSession | null {
+    return this.stateConfig.editSession ?? null;
+  }
+
+  startRenaming(path: string, draftName?: string): void {
+    this.setEditSession({
+      kind: 'rename',
+      targetPath: path,
+      ...(draftName != null && { draftName }),
+    });
+  }
+
+  startCreatingFile(parentPath?: string, draftName?: string): void {
+    this.setEditSession({
+      kind: 'new-file',
+      ...(parentPath != null && { parentPath }),
+      ...(draftName != null && { draftName }),
+    });
+  }
+
+  cancelEditing(): void {
+    this.setEditSession(null);
+  }
+
   // --- Callbacks ---
 
   setCallbacks(callbacks: Partial<FileTreeCallbacks>): void {
@@ -443,6 +491,9 @@ export class FileTree {
     if (state?.onFilesChange !== undefined) {
       this.callbacksRef.current.onFilesChange = state.onFilesChange;
     }
+    if (state?.onEditSessionChange !== undefined) {
+      this.callbacksRef.current.onEditSessionChange = state.onEditSessionChange;
+    }
     if (state?.onContextMenuOpen !== undefined) {
       this.callbacksRef.current.onContextMenuOpen = state.onContextMenuOpen;
     }
@@ -497,6 +548,9 @@ export class FileTree {
       this.rerender();
     } else {
       // State-only changes - use imperative methods
+      if (state?.editSession !== undefined) {
+        this.setEditSession(state.editSession);
+      }
       if (state?.expandedItems !== undefined) {
         this.setExpandedItems(state.expandedItems);
       }

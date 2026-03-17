@@ -6,6 +6,7 @@ import {
   A11ySection,
   CustomIconsSection,
   DragDropSection,
+  DynamicFilesSection,
   FlatteningSection,
   GitStatusSection,
   SearchSection,
@@ -35,6 +36,7 @@ export default function TreesHomePage() {
         <FlatteningSection />
         <GitStatusSection />
         <DragDropSection />
+        <DynamicFilesSection />
         <SearchSection />
         <VirtualizationSection />
         <A11ySection />

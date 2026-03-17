@@ -11,6 +11,7 @@ import {
   HEADER_SLOT_NAME,
 } from '../constants';
 import type {
+  FileTreeEditSession,
   FileTreeOptions,
   FileTreeSelectionItem,
   GitStatusEntry,
@@ -95,9 +96,11 @@ export interface FileTreeProps {
   // Controlled state
   expandedItems?: string[];
   selectedItems?: string[];
+  editSession?: FileTreeEditSession | null;
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
+  onEditSessionChange?: (session: FileTreeEditSession | null) => void;
 
   // Git status
   gitStatus?: GitStatusEntry[];
@@ -131,9 +134,11 @@ export function FileTree({
   initialSearchQuery,
   expandedItems,
   selectedItems,
+  editSession,
   onExpandedItemsChange,
   onSelectedItemsChange,
   onSelection,
+  onEditSessionChange,
   gitStatus,
   header,
   renderContextMenu,
@@ -189,9 +194,11 @@ export function FileTree({
     initialSearchQuery,
     expandedItems,
     selectedItems,
+    editSession,
     onExpandedItemsChange,
     onSelectedItemsChange,
     onSelection,
+    onEditSessionChange,
     gitStatus,
     onContextMenuOpen:
       onContextMenuOpen != null || renderContextMenu != null
