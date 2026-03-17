@@ -918,6 +918,7 @@ export function Root({
     closeContextMenu,
     openContextMenuForItem,
     handleTriggerClick,
+    handleContextMenuKeyDown,
     handleTreeKeyDownCapture,
     handleTreePointerOver,
     handleTreePointerLeave,
@@ -1279,6 +1280,7 @@ export function Root({
             ref={contextMenuAnchorRef}
             data-type="context-menu-anchor"
             data-visible="false"
+            onKeyDown={handleContextMenuKeyDown}
           >
             <button
               ref={triggerRef}

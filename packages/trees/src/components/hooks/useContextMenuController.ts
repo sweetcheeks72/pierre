@@ -9,6 +9,17 @@ import type { FileTreeCallbacks } from '../../FileTree';
 import type { FileTreeNode } from '../../types';
 import { getSelectionPath } from '../../utils/getSelectionPath';
 
+const BLOCKED_CONTEXT_MENU_NAV_KEYS = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+
 export interface UseContextMenuControllerArgs {
   tree: TreeInstance<FileTreeNode>;
   isContextMenuEnabled: boolean;
@@ -29,6 +40,7 @@ export interface UseContextMenuControllerResult {
     toggleIfAlreadyOpen?: boolean
   ) => void;
   handleTriggerClick: (e: MouseEvent) => void;
+  handleContextMenuKeyDown: (e: KeyboardEvent) => void;
   handleTreeKeyDownCapture: (e: KeyboardEvent) => void;
   handleTreePointerOver: (e: PointerEvent) => void;
   handleTreePointerLeave: () => void;
@@ -377,6 +389,24 @@ export function useContextMenuController({
     [openContextMenuForItem]
   );
 
+  const handleContextMenuKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (contextMenuItemIdRef.current == null || e.defaultPrevented) {
+        return;
+      }
+      if (!isEventInContextMenu(e)) {
+        return;
+      }
+      if (!BLOCKED_CONTEXT_MENU_NAV_KEYS.has(e.key) && e.key !== 'Escape') {
+        return;
+      }
+      // Let menu controls process keys first, then stop bubbling so tree-level
+      // keyboard navigation does not run while menu content has focus.
+      e.stopPropagation();
+    },
+    [isEventInContextMenu]
+  );
+
   useEffect(() => {
     if (contextMenuItemId == null) {
       return;
@@ -396,11 +426,15 @@ export function useContextMenuController({
     (e: KeyboardEvent) => {
       // Read from the ref so this callback always sees the latest open state
       // even before Preact re-renders with the updated closure.
-      if (
-        contextMenuItemIdRef.current == null ||
-        e.defaultPrevented ||
-        isEventInContextMenu(e)
-      ) {
+      if (contextMenuItemIdRef.current == null || e.defaultPrevented) {
+        return;
+      }
+      if (isEventInContextMenu(e)) {
+        // Let menu widgets handle key events, but prevent tree-level keyboard
+        // navigation from reacting to these keys while the context menu is open.
+        if (BLOCKED_CONTEXT_MENU_NAV_KEYS.has(e.key)) {
+          e.preventDefault();
+        }
         return;
       }
       e.preventDefault();
@@ -583,6 +617,7 @@ export function useContextMenuController({
     closeContextMenu,
     openContextMenuForItem,
     handleTriggerClick,
+    handleContextMenuKeyDown,
     handleTreeKeyDownCapture,
     handleTreePointerOver,
     handleTreePointerLeave,

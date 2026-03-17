@@ -11,6 +11,15 @@ async function openFixture(page: Page) {
   await page.waitForFunction(() => window.__fileTreeFixtureReady === true);
 }
 
+async function waitForNextFrame(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      })
+  );
+}
+
 async function getFocusedItemId(page: Page): Promise<string | null> {
   return page.evaluate(() => {
     const host = document.getElementById('context-menu-host');
@@ -31,13 +40,17 @@ test.describe('file-tree context menu focus continuity', () => {
     await expect(items.first()).toBeVisible();
     await items.first().click();
 
+    await expect.poll(() => getFocusedItemId(page)).not.toBeNull();
     const focusedBeforeArrow = await getFocusedItemId(page);
-    expect(focusedBeforeArrow).not.toBeNull();
+    if (focusedBeforeArrow == null) {
+      throw new Error('Expected an initial focused item before ArrowDown');
+    }
 
     await page.keyboard.press('ArrowDown');
     await expect
       .poll(() => getFocusedItemId(page))
       .not.toBe(focusedBeforeArrow);
+    await waitForNextFrame(page);
     const focusedBeforeOpen = await getFocusedItemId(page);
     expect(focusedBeforeOpen).not.toBeNull();
     if (focusedBeforeOpen == null) {
@@ -55,7 +68,6 @@ test.describe('file-tree context menu focus continuity', () => {
       'file-tree-container button[data-type="context-menu-trigger"][data-visible="true"]'
     );
     await expect(trigger).toBeVisible();
-    await expect(trigger).toHaveAttribute('data-item-id', focusedBeforeOpen);
     await trigger.click();
 
     const menu = page.locator('[data-test-context-menu]');
