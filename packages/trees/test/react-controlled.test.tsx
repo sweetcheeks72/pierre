@@ -283,7 +283,7 @@ describe('React controlled FileTree wrapper', () => {
     expect(setSelectedSpy).toHaveBeenCalledWith(['README.md']);
   });
 
-  test('calls setEntries when controlled entries prop changes', () => {
+  test('calls setEntries when controlled object-mode files prop changes', () => {
     let setEntries!: (entries: FileTreeEntry[]) => void;
 
     function Harness() {
@@ -292,7 +292,7 @@ describe('React controlled FileTree wrapper', () => {
       ]);
       setEntries = setter;
       return (
-        <FileTreeReact options={{}} entries={value} onEntriesChange={setter} />
+        <FileTreeReact options={{}} files={value} onFilesChange={setter} />
       );
     }
 
@@ -313,6 +313,51 @@ describe('React controlled FileTree wrapper', () => {
       { path: 'src', type: 'directory' },
       { path: 'src/empty', type: 'directory' },
     ]);
+  });
+
+  test('preserves object-mode callbacks after controlled files become empty', () => {
+    let setEntries!: (entries: FileTreeEntry[]) => void;
+    const calls: FileTreeEntry[][] = [];
+
+    function Harness() {
+      const [value, setter] = useState<FileTreeEntry[]>([
+        { path: 'src', type: 'directory' },
+      ]);
+      setEntries = setter;
+
+      const handleFilesChange = (nextFiles: FileTreeEntry[]) => {
+        calls.push(nextFiles);
+        setter(nextFiles);
+      };
+
+      return (
+        <FileTreeReact
+          options={{}}
+          files={value}
+          onFilesChange={handleFilesChange}
+        />
+      );
+    }
+
+    act(() => {
+      root.render(<Harness />);
+    });
+
+    act(() => {
+      setEntries([]);
+    });
+
+    const latestCallbacks = setCallbacksSpy.mock.calls.at(-1)?.[0] as
+      | { _onEntriesMutate?: (entries: FileTreeEntry[]) => void }
+      | undefined;
+
+    act(() => {
+      latestCallbacks?._onEntriesMutate?.([
+        { path: 'src/empty', type: 'directory' },
+      ]);
+    });
+
+    expect(calls.at(-1)).toEqual([{ path: 'src/empty', type: 'directory' }]);
   });
 
   test('calls setEditSession when editSession prop changes', () => {
@@ -550,6 +595,22 @@ describe('React controlled FileTree wrapper', () => {
     expect(capturedOptions!.initialFiles).toEqual(FILES);
 
     // Restore spy
+    renderSpy.mockImplementation(() => {});
+  });
+
+  test('passes initialFiles to constructor from options.initialFiles', () => {
+    let capturedOptions: FileTreeClass['options'] | null = null;
+    renderSpy.mockImplementation(function (this: FileTreeClass) {
+      capturedOptions = this.options;
+    });
+
+    act(() => {
+      root.render(<FileTreeReact options={{ initialFiles: FILES }} />);
+    });
+
+    expect(capturedOptions).not.toBeNull();
+    expect(capturedOptions!.initialFiles).toEqual(FILES);
+
     renderSpy.mockImplementation(() => {});
   });
 

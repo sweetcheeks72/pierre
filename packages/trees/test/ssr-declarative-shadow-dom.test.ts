@@ -2,6 +2,8 @@ import { beforeAll, describe, expect, test } from 'bun:test';
 // @ts-expect-error -- no @types/jsdom; only used in tests
 import { JSDOM } from 'jsdom';
 
+import type { FileTreeEntriesInput } from '../src/types';
+
 let FileTree: typeof import('../src/FileTree').FileTree;
 let preloadFileTree: typeof import('../src/ssr/preloadFileTree').preloadFileTree;
 let ensureFileTreeStyles: typeof import('../src/components/web-components').ensureFileTreeStyles;
@@ -238,6 +240,20 @@ describe('SSR + declarative shadow DOM', () => {
     expect(ft.getFiles()).toEqual(newFiles);
   });
 
+  test('object-mode files stay in entry mode after becoming empty', () => {
+    const calls: unknown[] = [];
+    const ft = new FileTree(
+      { initialFiles: [{ path: 'src', type: 'directory' }] },
+      { onFilesChange: (files) => calls.push(files) }
+    );
+
+    ft.setFiles([]);
+    ft.setEntries([{ path: 'src/empty', type: 'directory' }]);
+
+    expect(ft.getFiles()).toEqual([{ path: 'src/empty', type: 'directory' }]);
+    expect(calls.at(-1)).toEqual([{ path: 'src/empty', type: 'directory' }]);
+  });
+
   test('setOptions with state.files delegates to setFiles', () => {
     const ft = new FileTree({ initialFiles: ['a.txt'] });
     ft.setOptions({}, { files: ['b.txt'] });
@@ -465,7 +481,7 @@ describe('SSR + declarative shadow DOM', () => {
   });
 
   test('setFiles invokes onFilesChange callback', () => {
-    const calls: string[][] = [];
+    const calls: FileTreeEntriesInput[] = [];
     const ft = new FileTree(
       { initialFiles: ['a.txt'] },
       { onFilesChange: (files) => calls.push(files) }
@@ -476,7 +492,7 @@ describe('SSR + declarative shadow DOM', () => {
   });
 
   test('setOptions with state.files invokes onFilesChange callback', () => {
-    const calls: string[][] = [];
+    const calls: FileTreeEntriesInput[] = [];
     const ft = new FileTree(
       { initialFiles: ['a.txt'] },
       { onFilesChange: (files) => calls.push(files) }

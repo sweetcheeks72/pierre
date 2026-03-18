@@ -225,9 +225,15 @@ import type {
 
 // FileTreeOptions is the main options object for FileTree (vanilla and React).
 // Pass it to the FileTree constructor or to the <FileTree options={...} /> component.
+type FileTreeEntry = {
+  path: string;
+  type: 'file' | 'directory';
+};
+
 interface FileTreeOptions {
-  // Required: array of file paths (forward slashes). Defines the tree structure.
-  initialFiles: string[];
+  // Optional: homogeneous array of file paths or explicit entries.
+  // Use object entries when you need empty directories.
+  initialFiles?: string[] | FileTreeEntry[];
 
   // Optional: unique id for this instance (DOM ids, SSR). Defaults to ft_brw_1, etc.
   id?: string;
@@ -269,10 +275,11 @@ interface FileTreeOptions {
 // Example usage
 const options: FileTreeOptions = {
   initialFiles: [
-    'README.md',
-    'package.json',
-    'src/index.ts',
-    'src/components/Button.tsx',
+    { path: 'README.md', type: 'file' },
+    { path: 'package.json', type: 'file' },
+    { path: 'src/index.ts', type: 'file' },
+    { path: 'src/components/Button.tsx', type: 'file' },
+    { path: 'src/components/empty', type: 'directory' },
   ],
   flattenEmptyDirectories: true,
   fileTreeSearchMode: 'collapse-non-matches',

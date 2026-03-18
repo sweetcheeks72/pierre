@@ -4,7 +4,6 @@ import {
   FileTree,
   type FileTreeEditSession,
   type FileTreeEntriesInput,
-  type FileTreeEntry,
   type FileTreeOptions,
   type FileTreeSelectionItem,
   type FileTreeStateConfig,
@@ -12,19 +11,21 @@ import {
 } from '../../FileTree';
 import type { ContextMenuItem, ContextMenuOpenContext } from '../../types';
 import { getGitStatusSignature } from '../../utils/getGitStatusSignature';
+import {
+  detectEntriesInputMode,
+  type FileTreeInputMode,
+  formatEntriesForInputMode,
+} from '../../utils/normalizeEntries';
 
-interface UseFileTreeInstanceProps {
-  options: Omit<FileTreeOptions, 'initialFiles' | 'initialEntries'>;
+interface UseFileTreeInstanceProps<TFiles extends FileTreeEntriesInput> {
+  options: FileTreeOptions;
 
   // Default (uncontrolled) files
-  initialFiles?: string[];
-  initialEntries?: FileTreeEntriesInput;
+  initialFiles?: TFiles;
 
   // Controlled files
-  files?: string[];
-  entries?: FileTreeEntriesInput;
-  onFilesChange?: (files: string[]) => void;
-  onEntriesChange?: (entries: FileTreeEntry[]) => void;
+  files?: TFiles;
+  onFilesChange?: (files: TFiles) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -55,14 +56,36 @@ interface UseFileTreeInstanceReturn {
   ref(node: HTMLElement | null): void | (() => void);
 }
 
-export function useFileTreeInstance({
+function emitTypedFilesChange<TFiles extends FileTreeEntriesInput>(
+  onFilesChange: ((files: TFiles) => void) | undefined,
+  nextFiles: FileTreeEntriesInput
+): void {
+  onFilesChange?.(nextFiles as TFiles);
+}
+
+type StateProps<TFiles extends FileTreeEntriesInput> = Omit<
+  FileTreeStateConfig,
+  'files' | 'onFilesChange'
+> & {
+  files?: TFiles;
+  initialFiles?: TFiles;
+  onFilesChange?: (files: TFiles) => void;
+  filesInputMode: FileTreeInputMode;
+  gitStatus?: GitStatusEntry[];
+  onContextMenuOpen?: (
+    item: ContextMenuItem,
+    context: ContextMenuOpenContext
+  ) => void;
+  onContextMenuClose?: () => void;
+};
+
+export function useFileTreeInstance<
+  TFiles extends FileTreeEntriesInput = string[],
+>({
   options,
   initialFiles,
-  initialEntries,
   files,
-  entries,
   onFilesChange,
-  onEntriesChange,
   initialExpandedItems,
   initialSelectedItems,
   initialSearchQuery,
@@ -76,31 +99,26 @@ export function useFileTreeInstance({
   onContextMenuOpen,
   onContextMenuClose,
   gitStatus,
-}: UseFileTreeInstanceProps): UseFileTreeInstanceReturn {
+}: UseFileTreeInstanceProps<TFiles>): UseFileTreeInstanceReturn {
   const containerRef = useRef<HTMLElement | null>(null);
   const instanceRef = useRef<FileTree | null>(null);
   const syncedGitStatusSignatureRef = useRef(getGitStatusSignature(gitStatus));
+  const initialFilesInput =
+    initialFiles ?? (options.initialFiles as TFiles | undefined);
+  const filesInputModeRef = useRef(
+    detectEntriesInputMode(files ?? initialFilesInput)
+  );
 
-  // Keep a ref to the latest state-related props so the ref callback can read
-  // them at creation time without including them as useMemo deps.
-  const statePropsRef = useRef<
-    FileTreeStateConfig & {
-      initialFiles?: string[];
-      initialEntries?: FileTreeEntriesInput;
-      gitStatus?: GitStatusEntry[];
-      onContextMenuOpen?: (
-        item: ContextMenuItem,
-        context: ContextMenuOpenContext
-      ) => void;
-      onContextMenuClose?: () => void;
-    }
-  >({
+  filesInputModeRef.current = detectEntriesInputMode(
+    files ?? initialFilesInput,
+    filesInputModeRef.current
+  );
+
+  const statePropsRef = useRef<StateProps<TFiles>>({
     files,
-    entries,
-    initialFiles,
-    initialEntries,
+    initialFiles: initialFilesInput,
     onFilesChange,
-    onEntriesChange,
+    filesInputMode: filesInputModeRef.current,
     editSession,
     expandedItems,
     selectedItems,
@@ -115,13 +133,12 @@ export function useFileTreeInstance({
     onContextMenuOpen,
     onContextMenuClose,
   });
+
   statePropsRef.current = {
     files,
-    entries,
-    initialFiles,
-    initialEntries,
+    initialFiles: initialFilesInput,
     onFilesChange,
-    onEntriesChange,
+    filesInputMode: filesInputModeRef.current,
     editSession,
     expandedItems,
     selectedItems,
@@ -137,12 +154,6 @@ export function useFileTreeInstance({
     onContextMenuClose,
   };
 
-  // Ref callback that handles mount/unmount and re-runs when options change.
-  // By including options in the dependency array, the callback identity changes
-  // when structural options change, causing React to call cleanup then re-invoke with the
-  // same DOM node - allowing us to detect and handle options changes.
-  //
-  // React 19: Return cleanup function, called when ref changes or element unmounts.
   const ref = useCallback(
     (fileTreeContainer: HTMLElement | null) => {
       if (fileTreeContainer == null) {
@@ -182,30 +193,19 @@ export function useFileTreeInstance({
 
       const createInstance = (existingId?: string): FileTree => {
         const sp = statePropsRef.current;
-        const optionsWithFiles = options as FileTreeOptions;
         syncedGitStatusSignatureRef.current = getGitStatusSignature(
           sp.gitStatus
         );
+
         return new FileTree(
           {
             ...options,
-            initialEntries:
-              sp.initialEntries ??
-              sp.entries ??
-              sp.initialFiles ??
-              sp.files ??
-              optionsWithFiles.initialEntries ??
-              optionsWithFiles.initialFiles ??
-              [],
+            initialFiles:
+              sp.initialFiles ?? sp.files ?? options.initialFiles ?? [],
             id: existingId,
             ...(sp.gitStatus != null && { gitStatus: sp.gitStatus }),
           },
           {
-            // Use controlled values as initial state, but do NOT pass them as
-            // controlled `expandedItems`/`selectedItems` — those bake into
-            // config.state in the Preact Root and override imperative updates.
-            // Subsequent controlled updates flow via the useEffect below calling
-            // setExpandedItems/setSelectedItems imperatively.
             initialExpandedItems: sp.initialExpandedItems ?? sp.expandedItems,
             initialSelectedItems: sp.initialSelectedItems ?? sp.selectedItems,
             initialSearchQuery: sp.initialSearchQuery,
@@ -213,8 +213,12 @@ export function useFileTreeInstance({
             onExpandedItemsChange: sp.onExpandedItemsChange,
             onSelectedItemsChange: sp.onSelectedItemsChange,
             onSelection: sp.onSelection,
-            onFilesChange: sp.onFilesChange,
-            onEntriesChange: sp.onEntriesChange,
+            onFilesChange:
+              sp.onFilesChange == null
+                ? undefined
+                : (nextFiles) => {
+                    emitTypedFilesChange(sp.onFilesChange, nextFiles);
+                  },
             onEditSessionChange: sp.onEditSessionChange,
             onContextMenuOpen: sp.onContextMenuOpen,
             onContextMenuClose: sp.onContextMenuClose,
@@ -222,32 +226,21 @@ export function useFileTreeInstance({
         );
       };
 
-      const setupControlledDnD = (inst: FileTree): void => {
+      const setupControlledDnD = (instance: FileTree): void => {
         const sp = statePropsRef.current;
-        if (sp.entries !== undefined) {
-          inst.setCallbacks({
-            _onEntriesMutate: (newEntries) => {
-              sp.onEntriesChange?.(newEntries);
-              sp.onFilesChange?.(
-                newEntries
-                  .filter((entry) => entry.type === 'file')
-                  .map((entry) => entry.path)
-              );
-            },
-          });
-        } else if (sp.files !== undefined) {
-          inst.setCallbacks({
+
+        if (sp.files !== undefined) {
+          instance.setCallbacks({
             _onEntriesMutate: (newEntries) => {
               sp.onFilesChange?.(
-                newEntries
-                  .filter((entry) => entry.type === 'file')
-                  .map((entry) => entry.path)
+                formatEntriesForInputMode<TFiles>(newEntries, sp.filesInputMode)
               );
             },
           });
         }
+
         if (sp.editSession !== undefined) {
-          inst.setCallbacks({
+          instance.setCallbacks({
             _onEditSessionChange: (session) => {
               sp.onEditSessionChange?.(session);
             },
@@ -256,37 +249,26 @@ export function useFileTreeInstance({
       };
 
       const existingFileTreeId = getExistingFileTreeId();
-
-      // Check if this is a re-run due to options change (same container, but new callback identity)
       const isOptionsChange =
         containerRef.current === fileTreeContainer &&
         instanceRef.current != null;
 
       if (isOptionsChange) {
-        // Options changed - clean up and re-create instance
         instanceRef.current?.cleanUp();
         clearExistingFileTree();
         instanceRef.current = createInstance(existingFileTreeId);
         setupControlledDnD(instanceRef.current);
         void instanceRef.current.render({ fileTreeContainer });
       } else {
-        // Initial mount
         containerRef.current = fileTreeContainer;
-
-        // If markup already exists in the shadow root (typically via SSR
-        // declarative shadow DOM), hydrate it.
         const hasPrerenderedContent = existingFileTreeId != null;
 
         instanceRef.current = createInstance(existingFileTreeId);
         setupControlledDnD(instanceRef.current);
 
         if (hasPrerenderedContent) {
-          // SSR: hydrate the prerendered HTML
-          void instanceRef.current.hydrate({
-            fileTreeContainer,
-          });
+          void instanceRef.current.hydrate({ fileTreeContainer });
         } else {
-          // CSR: render from scratch
           void instanceRef.current.render({ fileTreeContainer });
         }
       }
@@ -300,35 +282,24 @@ export function useFileTreeInstance({
     [options]
   );
 
-  // Sync controlled files imperatively (no tree recreation)
   useEffect(() => {
     if (files !== undefined && instanceRef.current != null) {
       instanceRef.current.setFiles(files);
     }
   }, [files]);
 
-  // Sync controlled entries imperatively (no tree recreation)
-  useEffect(() => {
-    if (entries !== undefined && instanceRef.current != null) {
-      instanceRef.current.setEntries(entries);
-    }
-  }, [entries]);
-
-  // Sync controlled expanded items imperatively (no tree recreation)
   useEffect(() => {
     if (expandedItems !== undefined && instanceRef.current != null) {
       instanceRef.current.setExpandedItems(expandedItems);
     }
   }, [expandedItems]);
 
-  // Sync controlled selected items imperatively (no tree recreation)
   useEffect(() => {
     if (selectedItems !== undefined && instanceRef.current != null) {
       instanceRef.current.setSelectedItems(selectedItems);
     }
   }, [selectedItems]);
 
-  // Sync controlled edit session imperatively (no tree recreation)
   useEffect(() => {
     if (editSession !== undefined && instanceRef.current != null) {
       instanceRef.current.setEditSession(editSession);
@@ -337,7 +308,6 @@ export function useFileTreeInstance({
 
   const gitStatusSignature = getGitStatusSignature(gitStatus);
 
-  // Sync controlled git status
   useEffect(() => {
     const instance = instanceRef.current;
     if (instance == null) return;
@@ -348,33 +318,27 @@ export function useFileTreeInstance({
     instance.setGitStatus(gitStatus);
   }, [gitStatus, gitStatusSignature]);
 
-  // Update callbacks without re-rendering Preact
   useEffect(() => {
     instanceRef.current?.setCallbacks({
       onExpandedItemsChange,
       onSelectedItemsChange,
       onSelection,
-      onFilesChange,
-      onEntriesChange,
+      onFilesChange:
+        onFilesChange == null
+          ? undefined
+          : (nextFiles) => {
+              emitTypedFilesChange(onFilesChange, nextFiles);
+            },
       onEditSessionChange,
       onContextMenuOpen,
       onContextMenuClose,
       ...(files !== undefined && {
         _onEntriesMutate: (newEntries) => {
           onFilesChange?.(
-            newEntries
-              .filter((entry) => entry.type === 'file')
-              .map((entry) => entry.path)
-          );
-        },
-      }),
-      ...(entries !== undefined && {
-        _onEntriesMutate: (newEntries) => {
-          onEntriesChange?.(newEntries);
-          onFilesChange?.(
-            newEntries
-              .filter((entry) => entry.type === 'file')
-              .map((entry) => entry.path)
+            formatEntriesForInputMode<TFiles>(
+              newEntries,
+              filesInputModeRef.current
+            )
           );
         },
       }),
@@ -389,14 +353,11 @@ export function useFileTreeInstance({
     onSelectedItemsChange,
     onSelection,
     onFilesChange,
-    onEntriesChange,
     onEditSessionChange,
     onContextMenuOpen,
     onContextMenuClose,
     files,
-    entries,
     editSession,
-    options.dragAndDrop,
   ]);
 
   return { ref };

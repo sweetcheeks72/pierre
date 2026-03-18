@@ -24,7 +24,12 @@ import {
   filterOrphanedPaths,
   isOrphanedPathForExpandedSet,
 } from './utils/expandPaths';
-import { entriesToFiles, normalizeEntries } from './utils/normalizeEntries';
+import {
+  detectEntriesInputMode,
+  type FileTreeInputMode,
+  formatEntriesForInputMode,
+  normalizeEntries,
+} from './utils/normalizeEntries';
 import {
   preactHydrateRoot,
   preactRenderRoot,
@@ -41,6 +46,10 @@ export type {
 } from './types';
 
 let instanceId = -1;
+
+type BivariantCallback<TArgs extends unknown[]> = {
+  bivarianceHack(...args: TArgs): void;
+}['bivarianceHack'];
 
 function entriesAreEqual(
   left: FileTreeEntry[],
@@ -100,8 +109,7 @@ export interface FileTreeCallbacks {
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
-  onFilesChange?: (files: string[]) => void;
-  onEntriesChange?: (entries: FileTreeEntry[]) => void;
+  onFilesChange?: BivariantCallback<[files: FileTreeEntriesInput]>;
   onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
@@ -137,8 +145,7 @@ export interface FileTreeOptions {
   flattenEmptyDirectories?: boolean;
   gitStatus?: GitStatusEntry[];
   id?: string;
-  initialEntries?: FileTreeEntriesInput;
-  initialFiles?: string[];
+  initialFiles?: FileTreeEntriesInput;
   /** Paths that cannot be dragged (e.g. ['package.json']). Uses same path form as the tree (no f:: prefix). */
   lockedPaths?: string[];
   /** Return true to overwrite the destination file when a DnD move collides. */
@@ -169,16 +176,14 @@ export interface FileTreeStateConfig {
   // Controlled state (applied every render, overrides internal state)
   expandedItems?: string[];
   selectedItems?: string[];
-  files?: string[];
-  entries?: FileTreeEntriesInput;
+  files?: FileTreeEntriesInput;
   editSession?: FileTreeEditSession | null;
 
   // State change callbacks
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
-  onFilesChange?: (files: string[]) => void;
-  onEntriesChange?: (entries: FileTreeEntry[]) => void;
+  onFilesChange?: BivariantCallback<[files: FileTreeEntriesInput]>;
   onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
@@ -208,18 +213,20 @@ export class FileTree {
   private expandPathsCacheFor: Map<string, string> | null = null;
   private childCountCache: Map<string, number> | null = null;
   private childCountCacheFor: Map<string, string> | null = null;
+  private filesInputMode: FileTreeInputMode = 'paths';
 
   constructor(
     public options: FileTreeOptions,
     public stateConfig: FileTreeStateConfig = {}
   ) {
-    const normalizedEntries = normalizeEntries(
-      options.initialEntries ?? options.initialFiles ?? []
-    );
+    this.filesInputMode = detectEntriesInputMode(options.initialFiles);
+    const normalizedEntries = normalizeEntries(options.initialFiles ?? []);
     this.options = {
       ...options,
-      initialEntries: normalizedEntries,
-      initialFiles: entriesToFiles(normalizedEntries),
+      initialFiles: formatEntriesForInputMode(
+        normalizedEntries,
+        this.filesInputMode
+      ),
     };
     if (typeof document !== 'undefined') {
       this.fileTreeContainer = document.createElement(FILE_TREE_TAG_NAME);
@@ -232,7 +239,6 @@ export class FileTree {
         onSelectedItemsChange: stateConfig.onSelectedItemsChange,
         onSelection: stateConfig.onSelection,
         onFilesChange: stateConfig.onFilesChange,
-        onEntriesChange: stateConfig.onEntriesChange,
         onEditSessionChange: stateConfig.onEditSessionChange,
         onContextMenuOpen: stateConfig.onContextMenuOpen,
         onContextMenuClose: stateConfig.onContextMenuClose,
@@ -441,18 +447,16 @@ export class FileTree {
     }
     this.options = {
       ...this.options,
-      initialEntries: entries,
-      initialFiles: entriesToFiles(entries),
+      initialFiles: formatEntriesForInputMode(entries, this.filesInputMode),
     };
-    this.callbacksRef.current.onEntriesChange?.(entries);
-    this.callbacksRef.current.onFilesChange?.(entriesToFiles(entries));
+    this.callbacksRef.current.onFilesChange?.(
+      formatEntriesForInputMode(entries, this.filesInputMode)
+    );
     this.rerender();
   }
 
   getEntries(): FileTreeEntry[] {
-    return normalizeEntries(
-      this.options.initialEntries ?? this.options.initialFiles ?? []
-    );
+    return normalizeEntries(this.options.initialFiles ?? []);
   }
 
   private applyEditSession(session: FileTreeEditSession | null): void {
@@ -520,11 +524,12 @@ export class FileTree {
 
   // --- Heavier updates (re-render) ---
 
-  setFiles(files: string[]): void {
+  setFiles(files: FileTreeEntriesInput): void {
+    this.filesInputMode = detectEntriesInputMode(files, this.filesInputMode);
     this.setEntries(files);
   }
 
-  getFiles(): string[] {
+  getFiles(): FileTreeEntriesInput {
     return this.options.initialFiles ?? [];
   }
 
@@ -559,9 +564,6 @@ export class FileTree {
     if (state?.onFilesChange !== undefined) {
       this.callbacksRef.current.onFilesChange = state.onFilesChange;
     }
-    if (state?.onEntriesChange !== undefined) {
-      this.callbacksRef.current.onEntriesChange = state.onEntriesChange;
-    }
     if (state?.onEditSessionChange !== undefined) {
       this.callbacksRef.current.onEditSessionChange = state.onEditSessionChange;
     }
@@ -577,7 +579,6 @@ export class FileTree {
       'dragAndDrop',
       'fileTreeSearchMode',
       'gitStatus',
-      'initialEntries',
       'initialFiles',
       'icons',
       'flattenEmptyDirectories',
@@ -596,26 +597,30 @@ export class FileTree {
       }
     }
 
-    const nextEntriesInput =
-      state?.entries ??
-      state?.files ??
-      options.initialEntries ??
-      options.initialFiles;
+    const nextFilesInput = state?.files ?? options.initialFiles;
     const nextEntries =
-      nextEntriesInput !== undefined
-        ? normalizeEntries(nextEntriesInput)
+      nextFilesInput !== undefined
+        ? normalizeEntries(nextFilesInput)
         : undefined;
     const stateEntriesProvided = nextEntries !== undefined;
     const stateEntriesChanged =
       nextEntries !== undefined &&
       !entriesAreEqual(this.getEntries(), nextEntries);
+    if (nextFilesInput !== undefined) {
+      this.filesInputMode = detectEntriesInputMode(
+        nextFilesInput,
+        this.filesInputMode
+      );
+    }
     this.options = {
       ...this.options,
       ...options,
       ...(stateEntriesProvided &&
         nextEntries !== undefined && {
-          initialEntries: nextEntries,
-          initialFiles: entriesToFiles(nextEntries),
+          initialFiles: formatEntriesForInputMode(
+            nextEntries,
+            this.filesInputMode
+          ),
         }),
     };
     if (state != null) {
@@ -629,8 +634,9 @@ export class FileTree {
 
     if (needsRerender || stateEntriesChanged) {
       if (stateEntriesChanged && nextEntries !== undefined) {
-        this.callbacksRef.current.onEntriesChange?.(nextEntries);
-        this.callbacksRef.current.onFilesChange?.(entriesToFiles(nextEntries));
+        this.callbacksRef.current.onFilesChange?.(
+          formatEntriesForInputMode(nextEntries, this.filesInputMode)
+        );
       }
       this.rerender();
     } else {

@@ -4,6 +4,8 @@ import type {
   FileTreeStateConfig,
 } from '@pierre/trees';
 
+type StringModeFileTreeOptions = FileTreeOptions & { initialFiles: string[] };
+
 export const sampleFileList: string[] = [
   'README.md',
   'package.json',
@@ -25,7 +27,7 @@ export const sampleFileList: string[] = [
   '.gitignore',
 ];
 
-export const sharedDemoFileTreeOptions: FileTreeOptions = {
+export const sharedDemoFileTreeOptions: StringModeFileTreeOptions = {
   flattenEmptyDirectories: true,
   initialFiles: sampleFileList,
 };

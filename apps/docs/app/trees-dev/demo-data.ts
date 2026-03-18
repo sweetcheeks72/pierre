@@ -9,6 +9,7 @@ import linuxData from './linux-files.json';
 
 export const linuxKernelFiles: string[] = linuxData.files;
 export const linuxKernelAllFolders: string[] = linuxData.folders;
+type StringModeFileTreeOptions = FileTreeOptions & { initialFiles: string[] };
 
 const sampleFileList: string[] = [
   'README.md',
@@ -31,7 +32,7 @@ const sampleFileList: string[] = [
   '.gitignore',
 ];
 
-export const sharedDemoFileTreeOptions: FileTreeOptions = {
+export const sharedDemoFileTreeOptions: StringModeFileTreeOptions = {
   flattenEmptyDirectories: true,
   initialFiles: sampleFileList,
 };

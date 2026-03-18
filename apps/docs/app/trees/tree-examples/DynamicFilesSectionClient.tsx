@@ -29,11 +29,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const INITIAL_FILES = baseTreeOptions.initialFiles ?? [];
-const INITIAL_ENTRIES: FileTreeEntry[] = INITIAL_FILES.map((path) => ({
-  path,
-  type: 'file',
-}));
+const INITIAL_FILE_ITEMS: FileTreeEntry[] = baseTreeOptions.initialFiles.map(
+  (path) => ({
+    path,
+    type: 'file',
+  })
+);
 
 function getParentPath(path: string): string {
   const slash = path.lastIndexOf('/');
@@ -127,30 +128,30 @@ export function DynamicFilesSectionClient({
   initialExpandedItems: string[];
   prerenderedHTML: string;
 }) {
-  const [entries, setEntries] = useState(INITIAL_ENTRIES);
+  const [files, setFiles] = useState(INITIAL_FILE_ITEMS);
   const [selection, setSelection] = useState<FileTreeSelectionItem[]>([]);
   const [editSession, setEditSession] = useState<FileTreeEditSession | null>(
     null
   );
 
   const entryKeySet = useMemo(
-    () => new Set(entries.map((entry) => `${entry.type}:${entry.path}`)),
-    [entries]
+    () => new Set(files.map((entry) => `${entry.type}:${entry.path}`)),
+    [files]
   );
   const isPristine = useMemo(
     () =>
-      entries.length === INITIAL_ENTRIES.length &&
-      INITIAL_ENTRIES.every((entry) =>
+      files.length === INITIAL_FILE_ITEMS.length &&
+      INITIAL_FILE_ITEMS.every((entry) =>
         entryKeySet.has(`${entry.type}:${entry.path}`)
       ),
-    [entries.length, entryKeySet]
+    [files.length, entryKeySet]
   );
   const { fileCount, folderCount } = useMemo(
     () => ({
-      fileCount: entries.filter((entry) => entry.type === 'file').length,
-      folderCount: entries.filter((entry) => entry.type === 'directory').length,
+      fileCount: files.filter((entry) => entry.type === 'file').length,
+      folderCount: files.filter((entry) => entry.type === 'directory').length,
     }),
-    [entries]
+    [files]
   );
   const primarySelection = selection[0] ?? null;
   const newFileParentPath = useMemo(() => {
@@ -176,20 +177,20 @@ export function DynamicFilesSectionClient({
     });
   }, [newFileParentPath]);
 
-  const handleEntriesChange = useCallback((nextEntries: FileTreeEntry[]) => {
-    setEntries(nextEntries);
+  const handleFilesChange = useCallback((nextFiles: FileTreeEntry[]) => {
+    setFiles(nextFiles);
     setSelection([]);
     setEditSession(null);
   }, []);
 
   const handleReset = useCallback(() => {
-    setEntries(INITIAL_ENTRIES);
+    setFiles(INITIAL_FILE_ITEMS);
     setSelection([]);
     setEditSession(null);
   }, []);
 
   const handleDeleteFromContextMenu = useCallback((item: ContextMenuItem) => {
-    setEntries((currentEntries) => removeItemFromEntries(currentEntries, item));
+    setFiles((currentEntries) => removeItemFromEntries(currentEntries, item));
     setSelection([]);
     setEditSession(null);
   }, []);
@@ -208,8 +209,8 @@ export function DynamicFilesSectionClient({
         title="Create and rename files and folders inline"
         description={
           <>
-            Control the <code>entries</code> prop to update the tree whenever
-            your app creates, removes, or renames files and folders. Click{' '}
+            Control the <code>files</code> prop to update the tree whenever your
+            app creates, removes, or renames files and folders. Click{' '}
             <code>New file</code> or <code>New folder</code> to insert a
             temporary row directly in the tree, type a path, and press Enter to
             commit it. Select any item and press <code>F2</code> to rename it
@@ -244,10 +245,10 @@ export function DynamicFilesSectionClient({
         <FileTree
           className={DEFAULT_FILE_TREE_PANEL_CLASS}
           editSession={editSession}
-          entries={entries}
+          files={files}
           initialExpandedItems={initialExpandedItems}
           onEditSessionChange={setEditSession}
-          onEntriesChange={handleEntriesChange}
+          onFilesChange={handleFilesChange}
           onSelection={setSelection}
           renderContextMenu={(item, context) => (
             <TreeEditingContextMenu

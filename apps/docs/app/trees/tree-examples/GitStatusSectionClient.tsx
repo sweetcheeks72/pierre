@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 import { Switch } from '@/components/ui/switch';
 
-const BASE_TREE_FILES = baseTreeOptions.initialFiles ?? [];
+const BASE_TREE_FILES = baseTreeOptions.initialFiles;
 
 export function GitStatusSectionClient({
   prerenderedHTML,

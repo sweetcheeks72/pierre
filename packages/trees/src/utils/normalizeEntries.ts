@@ -4,6 +4,8 @@ import type {
   FileTreeEntryType,
 } from '../types';
 
+export type FileTreeInputMode = 'paths' | 'entries';
+
 function resolveEntryType(
   currentType: FileTreeEntryType | undefined,
   nextType: FileTreeEntryType
@@ -48,8 +50,33 @@ export function normalizeEntries(
     .map(([path, type]) => ({ path, type }));
 }
 
+export function detectEntriesInputMode(
+  input: FileTreeEntriesInput | undefined,
+  fallbackMode: FileTreeInputMode = 'paths'
+): FileTreeInputMode {
+  if (input == null || input.length === 0) {
+    return fallbackMode;
+  }
+  return typeof input[0] === 'string' ? 'paths' : 'entries';
+}
+
 export function entriesToFiles(entries: FileTreeEntry[]): string[] {
   return entries
     .filter((entry) => entry.type === 'file')
     .map((entry) => entry.path);
+}
+
+export function formatEntriesForInputMode(
+  entries: FileTreeEntry[],
+  mode: FileTreeInputMode
+): FileTreeEntriesInput;
+export function formatEntriesForInputMode<TFiles extends FileTreeEntriesInput>(
+  entries: FileTreeEntry[],
+  mode: FileTreeInputMode
+): TFiles;
+export function formatEntriesForInputMode<TFiles extends FileTreeEntriesInput>(
+  entries: FileTreeEntry[],
+  mode: FileTreeInputMode
+): TFiles {
+  return (mode === 'entries' ? entries : entriesToFiles(entries)) as TFiles;
 }

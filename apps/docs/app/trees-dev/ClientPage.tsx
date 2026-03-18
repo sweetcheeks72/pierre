@@ -43,7 +43,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const SHARED_DEMO_FILES = sharedDemoFileTreeOptions.initialFiles ?? [];
+const SHARED_DEMO_FILES = sharedDemoFileTreeOptions.initialFiles;
 
 function cleanupFileTreeInstance(
   container: HTMLElement,
@@ -96,7 +96,7 @@ export function ClientPage({
   );
   const skipCookieWriteRef = useRef(false);
 
-  const fileTreeOptions = useMemo<FileTreeOptions>(
+  const fileTreeOptions = useMemo(
     () => ({
       ...sharedDemoFileTreeOptions,
       flattenEmptyDirectories,

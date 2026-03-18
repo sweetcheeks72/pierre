@@ -13,7 +13,6 @@ import {
 import type {
   FileTreeEditSession,
   FileTreeEntriesInput,
-  FileTreeEntry,
   FileTreeOptions,
   FileTreeSelectionItem,
   GitStatusEntry,
@@ -71,8 +70,8 @@ export function templateRender(
   return <>{children}</>;
 }
 
-export interface FileTreeProps {
-  options: Omit<FileTreeOptions, 'initialFiles' | 'initialEntries'>;
+export interface FileTreeProps<TFiles extends FileTreeEntriesInput = string[]> {
+  options: FileTreeOptions;
   className?: string;
   style?: React.CSSProperties;
   prerenderedHTML?: string;
@@ -84,14 +83,11 @@ export interface FileTreeProps {
   containerId?: string;
 
   // Default (uncontrolled) files
-  initialFiles?: string[];
-  initialEntries?: FileTreeEntriesInput;
+  initialFiles?: TFiles;
 
   // Controlled files
-  files?: string[];
-  entries?: FileTreeEntriesInput;
-  onFilesChange?: (files: string[]) => void;
-  onEntriesChange?: (entries: FileTreeEntry[]) => void;
+  files?: TFiles;
+  onFilesChange?: (files: TFiles) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -125,18 +121,15 @@ export interface FileTreeProps {
   onContextMenuClose?: () => void;
 }
 
-export function FileTree({
+export function FileTree<TFiles extends FileTreeEntriesInput = string[]>({
   options,
   className,
   style,
   prerenderedHTML,
   containerId,
   initialFiles,
-  initialEntries,
   files,
-  entries,
   onFilesChange,
-  onEntriesChange,
   initialExpandedItems,
   initialSelectedItems,
   initialSearchQuery,
@@ -152,7 +145,7 @@ export function FileTree({
   renderContextMenu,
   onContextMenuOpen,
   onContextMenuClose,
-}: FileTreeProps): React.JSX.Element {
+}: FileTreeProps<TFiles>): React.JSX.Element {
   const [activeContextMenuItem, setActiveContextMenuItem] =
     useState<ContextMenuItem | null>(null);
   const [activeContextMenuContext, setActiveContextMenuContext] =
@@ -195,11 +188,8 @@ export function FileTree({
   const { ref } = useFileTreeInstance({
     options,
     initialFiles,
-    initialEntries,
     files,
-    entries,
     onFilesChange,
-    onEntriesChange,
     initialExpandedItems,
     initialSelectedItems,
     initialSearchQuery,

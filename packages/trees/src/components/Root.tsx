@@ -487,7 +487,6 @@ export function Root({
 }: FileTreeRootProps): JSX.Element {
   'use no memo';
   const {
-    initialEntries: initialEntriesInput,
     initialFiles: initialFilesInput,
     flattenEmptyDirectories,
     fileTreeSearchMode,
@@ -541,8 +540,8 @@ export function Root({
   );
 
   const entries = useMemo(
-    () => normalizeEntries(initialEntriesInput ?? initialFilesInput ?? []),
-    [initialEntriesInput, initialFilesInput]
+    () => normalizeEntries(initialFilesInput ?? []),
+    [initialFilesInput]
   );
   const treeData = useMemo(
     () => fileListToTree(entries, { sortComparator }),
