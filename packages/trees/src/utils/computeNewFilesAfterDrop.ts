@@ -1,4 +1,5 @@
 import { FLATTENED_PREFIX } from '../constants';
+import type { FileTreeEntry } from '../types';
 
 export interface DropCollision {
   origin: string | null;
@@ -37,13 +38,16 @@ const hasSelectedFolderAncestor = (
   return false;
 };
 
-const buildFolderSet = (files: string[]): Set<string> => {
+const buildEntryFolderSet = (entries: FileTreeEntry[]): Set<string> => {
   const folders = new Set<string>();
-  for (const file of files) {
-    let slash = file.lastIndexOf('/');
+  for (const entry of entries) {
+    if (entry.type === 'directory') {
+      folders.add(entry.path);
+    }
+    let slash = entry.path.lastIndexOf('/');
     while (slash !== -1) {
-      folders.add(file.slice(0, slash));
-      slash = file.lastIndexOf('/', slash - 1);
+      folders.add(entry.path.slice(0, slash));
+      slash = entry.path.lastIndexOf('/', slash - 1);
     }
   }
   return folders;
@@ -64,27 +68,28 @@ const getSelectedFolderForFile = (
   return undefined;
 };
 
-/**
- * Computes the new file list after dragging items to a target folder.
- *
- * @param currentFiles - The current flat list of file paths
- * @param draggedPaths - Paths being dragged (may include `f::` prefix)
- * @param targetFolderPath - Destination folder path, or `'root'` for top level
- * @param options - Optional move behavior, including collision handling
- * @returns A new file list with the dragged items moved
- */
-export function computeNewFilesAfterDrop(
-  currentFiles: string[],
+const getSelectedFolderForPath = (
+  path: string,
+  selectedFolders: Set<string>
+): string | undefined => {
+  if (selectedFolders.has(path)) {
+    return path;
+  }
+  return getSelectedFolderForFile(path, selectedFolders);
+};
+
+export function computeNewEntriesAfterDrop(
+  currentEntries: FileTreeEntry[],
   draggedPaths: string[],
   targetFolderPath: string,
   options: ComputeDropOptions = {}
-): string[] {
+): FileTreeEntry[] {
   const normalizedTarget = normalizePath(targetFolderPath);
   const targetPrefix =
     normalizedTarget === 'root' ? '' : `${normalizedTarget}/`;
 
-  const currentFileSet = new Set(currentFiles);
-  const folderSet = buildFolderSet(currentFiles);
+  const folderSet = buildEntryFolderSet(currentEntries);
+  const currentPathSet = new Set(currentEntries.map((entry) => entry.path));
 
   const normalizedDragged = [...new Set(draggedPaths.map(normalizePath))];
   const orderedDragged = normalizedDragged
@@ -105,22 +110,25 @@ export function computeNewFilesAfterDrop(
       selectedFolders.add(item.path);
       continue;
     }
-    if (currentFileSet.has(item.path)) {
+    if (currentPathSet.has(item.path)) {
       selectedFiles.add(item.path);
     }
   }
 
   const proposedDestinationByOrigin = new Map<string, string>();
-  for (const file of currentFiles) {
-    if (selectedFiles.has(file)) {
-      const destination = `${targetPrefix}${getBasename(file)}`;
-      if (destination !== file) {
-        proposedDestinationByOrigin.set(file, destination);
+  for (const entry of currentEntries) {
+    if (selectedFiles.has(entry.path)) {
+      const destination = `${targetPrefix}${getBasename(entry.path)}`;
+      if (destination !== entry.path) {
+        proposedDestinationByOrigin.set(entry.path, destination);
       }
       continue;
     }
 
-    const selectedFolder = getSelectedFolderForFile(file, selectedFolders);
+    const selectedFolder = getSelectedFolderForPath(
+      entry.path,
+      selectedFolders
+    );
     if (selectedFolder == null) {
       continue;
     }
@@ -132,34 +140,61 @@ export function computeNewFilesAfterDrop(
       continue;
     }
 
-    const destination = `${targetPrefix}${getBasename(selectedFolder)}${file.slice(selectedFolder.length)}`;
-    if (destination !== file) {
-      proposedDestinationByOrigin.set(file, destination);
+    const destination = `${targetPrefix}${getBasename(selectedFolder)}${entry.path.slice(selectedFolder.length)}`;
+    if (destination !== entry.path) {
+      proposedDestinationByOrigin.set(entry.path, destination);
     }
   }
 
+  const unmovedEntries = currentEntries.filter(
+    (entry) => !proposedDestinationByOrigin.has(entry.path)
+  );
+  const unmovedFolderSet = buildEntryFolderSet(unmovedEntries);
+
+  const originEntryMap = new Map(
+    currentEntries.map((entry) => [entry.path, entry] as const)
+  );
   const finalPathByOrigin = new Map<string, string | null>();
   const occupantByDestination = new Map<string, string>();
-  for (const file of currentFiles) {
-    finalPathByOrigin.set(file, file);
-    occupantByDestination.set(file, file);
+  for (const entry of currentEntries) {
+    finalPathByOrigin.set(entry.path, entry.path);
+    occupantByDestination.set(entry.path, entry.path);
   }
 
-  for (const origin of currentFiles) {
-    const destination = proposedDestinationByOrigin.get(origin);
+  for (const entry of currentEntries) {
+    const destination = proposedDestinationByOrigin.get(entry.path);
     if (destination == null) {
       continue;
     }
 
-    const currentPath = finalPathByOrigin.get(origin);
+    const currentPath = finalPathByOrigin.get(entry.path);
     if (currentPath == null || currentPath === destination) {
       continue;
     }
 
+    if (entry.type === 'file' && unmovedFolderSet.has(destination)) {
+      continue;
+    }
+
     const existingOccupant = occupantByDestination.get(destination);
-    if (existingOccupant != null && existingOccupant !== origin) {
+    if (existingOccupant != null && existingOccupant !== entry.path) {
+      const existingEntry = originEntryMap.get(existingOccupant);
+      if (existingEntry == null) {
+        continue;
+      }
+
+      if (entry.type === 'directory' && existingEntry.type === 'directory') {
+        occupantByDestination.delete(currentPath);
+        finalPathByOrigin.set(entry.path, null);
+        continue;
+      }
+
+      if (entry.type !== 'file' || existingEntry.type !== 'file') {
+        continue;
+      }
+
       const allowOverwrite =
-        options.onCollision?.({ origin, destination }) === true;
+        options.onCollision?.({ origin: entry.path, destination }) === true;
       if (!allowOverwrite) {
         continue;
       }
@@ -172,17 +207,45 @@ export function computeNewFilesAfterDrop(
     }
 
     occupantByDestination.delete(currentPath);
-    occupantByDestination.set(destination, origin);
-    finalPathByOrigin.set(origin, destination);
+    occupantByDestination.set(destination, entry.path);
+    finalPathByOrigin.set(entry.path, destination);
   }
 
-  const result: string[] = [];
-  for (const file of currentFiles) {
-    const next = finalPathByOrigin.get(file);
-    if (next != null) {
-      result.push(next);
+  const result: FileTreeEntry[] = [];
+  for (const entry of currentEntries) {
+    const nextPath = finalPathByOrigin.get(entry.path);
+    if (nextPath != null) {
+      result.push(
+        nextPath === entry.path ? entry : { ...entry, path: nextPath }
+      );
     }
   }
 
   return result;
+}
+
+/**
+ * Computes the new file list after dragging items to a target folder.
+ *
+ * @param currentFiles - The current flat list of file paths
+ * @param draggedPaths - Paths being dragged (may include `f::` prefix)
+ * @param targetFolderPath - Destination folder path, or `'root'` for top level
+ * @param options - Optional move behavior, including collision handling
+ * @returns A new file list with the dragged items moved
+ */
+export function computeNewFilesAfterDrop(
+  currentFiles: string[],
+  draggedPaths: string[],
+  targetFolderPath: string,
+  options: ComputeDropOptions = {}
+): string[] {
+  const nextEntries = computeNewEntriesAfterDrop(
+    currentFiles.map((path) => ({ path, type: 'file' })),
+    draggedPaths,
+    targetFolderPath,
+    options
+  );
+  return nextEntries.flatMap((entry) =>
+    entry.type === 'file' ? [entry.path] : []
+  );
 }

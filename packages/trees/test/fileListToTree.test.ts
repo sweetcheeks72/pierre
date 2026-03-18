@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { FileTreeData, FileTreeNode } from '../src/types';
+import type {
+  FileTreeData,
+  FileTreeEntriesInput,
+  FileTreeNode,
+} from '../src/types';
 import { fileListToTree } from '../src/utils/fileListToTree';
 
 type NormalizedTreeNode = Omit<FileTreeNode, 'path'>;
@@ -34,7 +38,7 @@ const normalizeTree = (tree: FileTreeData): NormalizedTree => {
 };
 
 const buildTree = (
-  files: string[],
+  files: FileTreeEntriesInput,
   options?: Parameters<typeof fileListToTree>[1]
 ): NormalizedTree => normalizeTree(fileListToTree(files, options));
 
@@ -188,6 +192,46 @@ describe('fileListToTree', () => {
     expect(tree.src.children?.direct).toHaveLength(2);
     expect(tree.src.children?.direct).toContain('src/index.ts');
     expect(tree.src.children?.direct).toContain('src/utils.ts');
+  });
+
+  test('should preserve explicit empty directories', () => {
+    const tree = buildTree([
+      { path: 'src', type: 'directory' },
+      { path: 'src/components', type: 'directory' },
+      { path: 'src/index.ts', type: 'file' },
+      { path: 'docs/empty', type: 'directory' },
+    ]);
+
+    expect(tree.root).toEqual({
+      name: 'root',
+      children: {
+        direct: ['docs', 'src'],
+      },
+    });
+    expect(tree.docs).toEqual({
+      name: 'docs',
+      children: {
+        direct: ['docs/empty'],
+      },
+    });
+    expect(tree['docs/empty']).toEqual({
+      name: 'empty',
+      children: {
+        direct: [],
+      },
+    });
+    expect(tree.src).toEqual({
+      name: 'src',
+      children: {
+        direct: ['src/components', 'src/index.ts'],
+      },
+    });
+    expect(tree['src/components']).toEqual({
+      name: 'components',
+      children: {
+        direct: [],
+      },
+    });
   });
 
   test('should support custom root name', () => {

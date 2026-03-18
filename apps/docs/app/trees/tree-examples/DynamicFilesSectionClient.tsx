@@ -4,6 +4,7 @@ import { IconRefresh } from '@pierre/icons';
 import type {
   ContextMenuItem,
   FileTreeEditSession,
+  FileTreeEntry,
   FileTreeSelectionItem,
 } from '@pierre/trees';
 import { FileTree } from '@pierre/trees/react';
@@ -29,21 +30,26 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const INITIAL_FILES = baseTreeOptions.initialFiles ?? [];
+const INITIAL_ENTRIES: FileTreeEntry[] = INITIAL_FILES.map((path) => ({
+  path,
+  type: 'file',
+}));
 
 function getParentPath(path: string): string {
   const slash = path.lastIndexOf('/');
   return slash === -1 ? '' : path.slice(0, slash);
 }
 
-function removeItemFromFiles(
-  currentFiles: string[],
+function removeItemFromEntries(
+  currentEntries: FileTreeEntry[],
   item: ContextMenuItem
-): string[] {
+): FileTreeEntry[] {
   if (!item.isFolder) {
-    return currentFiles.filter((path) => path !== item.path);
+    return currentEntries.filter((entry) => entry.path !== item.path);
   }
-  return currentFiles.filter(
-    (path) => path !== item.path && !path.startsWith(`${item.path}/`)
+  return currentEntries.filter(
+    (entry) =>
+      entry.path !== item.path && !entry.path.startsWith(`${item.path}/`)
   );
 }
 
@@ -121,18 +127,30 @@ export function DynamicFilesSectionClient({
   initialExpandedItems: string[];
   prerenderedHTML: string;
 }) {
-  const [files, setFiles] = useState(INITIAL_FILES);
+  const [entries, setEntries] = useState(INITIAL_ENTRIES);
   const [selection, setSelection] = useState<FileTreeSelectionItem[]>([]);
   const [editSession, setEditSession] = useState<FileTreeEditSession | null>(
     null
   );
 
-  const fileSet = useMemo(() => new Set(files), [files]);
+  const entryKeySet = useMemo(
+    () => new Set(entries.map((entry) => `${entry.type}:${entry.path}`)),
+    [entries]
+  );
   const isPristine = useMemo(
     () =>
-      files.length === INITIAL_FILES.length &&
-      INITIAL_FILES.every((path) => fileSet.has(path)),
-    [fileSet, files.length]
+      entries.length === INITIAL_ENTRIES.length &&
+      INITIAL_ENTRIES.every((entry) =>
+        entryKeySet.has(`${entry.type}:${entry.path}`)
+      ),
+    [entries.length, entryKeySet]
+  );
+  const { fileCount, folderCount } = useMemo(
+    () => ({
+      fileCount: entries.filter((entry) => entry.type === 'file').length,
+      folderCount: entries.filter((entry) => entry.type === 'directory').length,
+    }),
+    [entries]
   );
   const primarySelection = selection[0] ?? null;
   const newFileParentPath = useMemo(() => {
@@ -151,20 +169,27 @@ export function DynamicFilesSectionClient({
     });
   }, [newFileParentPath]);
 
-  const handleFilesChange = useCallback((nextFiles: string[]) => {
-    setFiles(nextFiles);
+  const handleNewFolder = useCallback(() => {
+    setEditSession({
+      kind: 'new-folder',
+      ...(newFileParentPath.length > 0 && { parentPath: newFileParentPath }),
+    });
+  }, [newFileParentPath]);
+
+  const handleEntriesChange = useCallback((nextEntries: FileTreeEntry[]) => {
+    setEntries(nextEntries);
     setSelection([]);
     setEditSession(null);
   }, []);
 
   const handleReset = useCallback(() => {
-    setFiles(INITIAL_FILES);
+    setEntries(INITIAL_ENTRIES);
     setSelection([]);
     setEditSession(null);
   }, []);
 
   const handleDeleteFromContextMenu = useCallback((item: ContextMenuItem) => {
-    setFiles((currentFiles) => removeItemFromFiles(currentFiles, item));
+    setEntries((currentEntries) => removeItemFromEntries(currentEntries, item));
     setSelection([]);
     setEditSession(null);
   }, []);
@@ -180,15 +205,16 @@ export function DynamicFilesSectionClient({
   return (
     <TreeExampleSection id="dynamic-files">
       <FeatureHeader
-        title="Create and rename files inline"
+        title="Create and rename files and folders inline"
         description={
           <>
-            Control the <code>files</code> prop to update the tree whenever your
-            app creates, removes, or renames files. Click <code>New file</code>{' '}
-            to insert a temporary row directly in the tree, type a path, and
-            press Enter to commit it. Select any item and press <code>F2</code>{' '}
-            to rename it inline. Right-click any row to open a context menu with
-            rename and delete actions. See the{' '}
+            Control the <code>entries</code> prop to update the tree whenever
+            your app creates, removes, or renames files and folders. Click{' '}
+            <code>New file</code> or <code>New folder</code> to insert a
+            temporary row directly in the tree, type a path, and press Enter to
+            commit it. Select any item and press <code>F2</code> to rename it
+            inline, or drag items to move them. Right-click any row to open a
+            context menu with rename and delete actions. See the{' '}
             <Link href="/preview/trees/docs#react-api" className="inline-link">
               React API docs
             </Link>{' '}
@@ -201,6 +227,9 @@ export function DynamicFilesSectionClient({
           <Button variant="outline" onClick={handleNewFile}>
             New file
           </Button>
+          <Button variant="outline" onClick={handleNewFolder}>
+            New folder
+          </Button>
           <Button variant="outline" disabled={isPristine} onClick={handleReset}>
             <IconRefresh />
             Reset
@@ -208,17 +237,17 @@ export function DynamicFilesSectionClient({
           <div className="font-mono text-xs text-zinc-400">
             {primarySelection != null
               ? `${primarySelection.isFolder ? 'Folder' : 'File'}: ${primarySelection.path}`
-              : `${files.length} file${files.length === 1 ? '' : 's'}`}
+              : `${fileCount} file${fileCount === 1 ? '' : 's'}, ${folderCount} folder${folderCount === 1 ? '' : 's'}`}
           </div>
         </div>
 
         <FileTree
           className={DEFAULT_FILE_TREE_PANEL_CLASS}
           editSession={editSession}
-          files={files}
+          entries={entries}
           initialExpandedItems={initialExpandedItems}
           onEditSessionChange={setEditSession}
-          onFilesChange={handleFilesChange}
+          onEntriesChange={handleEntriesChange}
           onSelection={setSelection}
           renderContextMenu={(item, context) => (
             <TreeEditingContextMenu
@@ -230,6 +259,7 @@ export function DynamicFilesSectionClient({
           )}
           options={{
             ...baseTreeOptions,
+            dragAndDrop: true,
             id: 'dynamic-files-demo',
           }}
           prerenderedHTML={prerenderedHTML}

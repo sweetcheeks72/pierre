@@ -69,6 +69,8 @@ import { renderToString } from 'react-dom/server';
 
 import {
   FileTree as FileTreeClass,
+  type FileTreeEditSession,
+  type FileTreeEntry,
   type FileTreeStateConfig,
 } from '../src/FileTree';
 import { FileTree as FileTreeReact } from '../src/react/FileTree';
@@ -101,6 +103,10 @@ const setFilesSpy = spyOn(
   FileTreeClass.prototype,
   'setFiles'
 ).mockImplementation(() => {});
+const setEntriesSpy = spyOn(
+  FileTreeClass.prototype,
+  'setEntries'
+).mockImplementation(() => {});
 const setEditSessionSpy = spyOn(
   FileTreeClass.prototype,
   'setEditSession'
@@ -113,6 +119,7 @@ const resetMethodMocks = (): void => {
   setSelectedSpy.mockImplementation(() => {});
   setCallbacksSpy.mockImplementation(() => {});
   setFilesSpy.mockImplementation(() => {});
+  setEntriesSpy.mockImplementation(() => {});
   setEditSessionSpy.mockImplementation(() => {});
 };
 
@@ -146,6 +153,7 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockClear();
     setCallbacksSpy.mockClear();
     setFilesSpy.mockClear();
+    setEntriesSpy.mockClear();
     setEditSessionSpy.mockClear();
   });
 
@@ -163,6 +171,7 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockRestore();
     setCallbacksSpy.mockRestore();
     setFilesSpy.mockRestore();
+    setEntriesSpy.mockRestore();
     setEditSessionSpy.mockRestore();
   });
 
@@ -274,20 +283,43 @@ describe('React controlled FileTree wrapper', () => {
     expect(setSelectedSpy).toHaveBeenCalledWith(['README.md']);
   });
 
-  test('calls setEditSession when editSession prop changes', () => {
-    let setEditSession!: (
-      session:
-        | { kind: 'rename'; targetPath: string }
-        | { kind: 'new-file'; parentPath?: string }
-        | null
-    ) => void;
+  test('calls setEntries when controlled entries prop changes', () => {
+    let setEntries!: (entries: FileTreeEntry[]) => void;
 
     function Harness() {
-      const [editSession, setter] = useState<
-        | { kind: 'rename'; targetPath: string }
-        | { kind: 'new-file'; parentPath?: string }
-        | null
-      >(null);
+      const [value, setter] = useState<FileTreeEntry[]>([
+        { path: 'src', type: 'directory' },
+      ]);
+      setEntries = setter;
+      return (
+        <FileTreeReact options={{}} entries={value} onEntriesChange={setter} />
+      );
+    }
+
+    act(() => {
+      root.render(<Harness />);
+    });
+
+    setEntriesSpy.mockClear();
+
+    act(() => {
+      setEntries([
+        { path: 'src', type: 'directory' },
+        { path: 'src/empty', type: 'directory' },
+      ]);
+    });
+
+    expect(setEntriesSpy).toHaveBeenCalledWith([
+      { path: 'src', type: 'directory' },
+      { path: 'src/empty', type: 'directory' },
+    ]);
+  });
+
+  test('calls setEditSession when editSession prop changes', () => {
+    let setEditSession!: (session: FileTreeEditSession | null) => void;
+
+    function Harness() {
+      const [editSession, setter] = useState<FileTreeEditSession | null>(null);
       setEditSession = setter;
       return (
         <FileTreeReact

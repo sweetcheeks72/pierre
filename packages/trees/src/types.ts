@@ -1,5 +1,15 @@
 export type FileList = string[];
 
+export type FileTreeEntryType = 'file' | 'directory';
+
+export type FileTreeEntry = {
+  path: string;
+  type: FileTreeEntryType;
+};
+
+export type FileTreeEntryInput = FileTreeEntry | string;
+export type FileTreeEntriesInput = FileTreeEntry[] | string[];
+
 export type GitStatus = 'added' | 'deleted' | 'modified';
 
 export type GitStatusEntry = {

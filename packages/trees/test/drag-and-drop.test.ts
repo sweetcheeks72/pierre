@@ -15,7 +15,10 @@ import { canDrop, getDragTarget } from '../src/features/dragAndDropUtils';
 import { fileTreeSearchFeature } from '../src/features/fileTreeSearchFeature';
 import { generateSyncDataLoader } from '../src/loader/sync';
 import type { FileTreeNode } from '../src/types';
-import { computeNewFilesAfterDrop } from '../src/utils/computeNewFilesAfterDrop';
+import {
+  computeNewEntriesAfterDrop,
+  computeNewFilesAfterDrop,
+} from '../src/utils/computeNewFilesAfterDrop';
 import { expandPathsWithAncestors } from '../src/utils/expandPaths';
 import { fileListToTree } from '../src/utils/fileListToTree';
 import { buildMapsFromLoader, TEST_CONFIGS } from './test-config';
@@ -259,6 +262,26 @@ describe('computeNewFilesAfterDrop', () => {
     const files = ['src/index.ts', 'src/components/a.ts'];
     const result = computeNewFilesAfterDrop(files, ['src'], 'src/components');
     expect(result).toEqual(files);
+  });
+
+  test('moves explicit empty directories with their folder subtree', () => {
+    const result = computeNewEntriesAfterDrop(
+      [
+        { path: 'src/components', type: 'directory' },
+        { path: 'src/components/empty', type: 'directory' },
+        { path: 'src/components/Button.tsx', type: 'file' },
+        { path: 'docs', type: 'directory' },
+      ],
+      ['src/components'],
+      'docs'
+    );
+
+    expect(result).toEqual([
+      { path: 'docs/components', type: 'directory' },
+      { path: 'docs/components/empty', type: 'directory' },
+      { path: 'docs/components/Button.tsx', type: 'file' },
+      { path: 'docs', type: 'directory' },
+    ]);
   });
 });
 

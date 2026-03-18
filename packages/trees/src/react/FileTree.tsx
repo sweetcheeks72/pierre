@@ -12,6 +12,8 @@ import {
 } from '../constants';
 import type {
   FileTreeEditSession,
+  FileTreeEntriesInput,
+  FileTreeEntry,
   FileTreeOptions,
   FileTreeSelectionItem,
   GitStatusEntry,
@@ -70,7 +72,7 @@ export function templateRender(
 }
 
 export interface FileTreeProps {
-  options: Omit<FileTreeOptions, 'initialFiles'>;
+  options: Omit<FileTreeOptions, 'initialFiles' | 'initialEntries'>;
   className?: string;
   style?: React.CSSProperties;
   prerenderedHTML?: string;
@@ -83,10 +85,13 @@ export interface FileTreeProps {
 
   // Default (uncontrolled) files
   initialFiles?: string[];
+  initialEntries?: FileTreeEntriesInput;
 
   // Controlled files
   files?: string[];
+  entries?: FileTreeEntriesInput;
   onFilesChange?: (files: string[]) => void;
+  onEntriesChange?: (entries: FileTreeEntry[]) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -127,8 +132,11 @@ export function FileTree({
   prerenderedHTML,
   containerId,
   initialFiles,
+  initialEntries,
   files,
+  entries,
   onFilesChange,
+  onEntriesChange,
   initialExpandedItems,
   initialSelectedItems,
   initialSearchQuery,
@@ -187,8 +195,11 @@ export function FileTree({
   const { ref } = useFileTreeInstance({
     options,
     initialFiles,
+    initialEntries,
     files,
+    entries,
     onFilesChange,
+    onEntriesChange,
     initialExpandedItems,
     initialSelectedItems,
     initialSearchQuery,

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef } from 'react';
 import {
   FileTree,
   type FileTreeEditSession,
+  type FileTreeEntriesInput,
+  type FileTreeEntry,
   type FileTreeOptions,
   type FileTreeSelectionItem,
   type FileTreeStateConfig,
@@ -12,14 +14,17 @@ import type { ContextMenuItem, ContextMenuOpenContext } from '../../types';
 import { getGitStatusSignature } from '../../utils/getGitStatusSignature';
 
 interface UseFileTreeInstanceProps {
-  options: Omit<FileTreeOptions, 'initialFiles'>;
+  options: Omit<FileTreeOptions, 'initialFiles' | 'initialEntries'>;
 
   // Default (uncontrolled) files
   initialFiles?: string[];
+  initialEntries?: FileTreeEntriesInput;
 
   // Controlled files
   files?: string[];
+  entries?: FileTreeEntriesInput;
   onFilesChange?: (files: string[]) => void;
+  onEntriesChange?: (entries: FileTreeEntry[]) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -53,8 +58,11 @@ interface UseFileTreeInstanceReturn {
 export function useFileTreeInstance({
   options,
   initialFiles,
+  initialEntries,
   files,
+  entries,
   onFilesChange,
+  onEntriesChange,
   initialExpandedItems,
   initialSelectedItems,
   initialSearchQuery,
@@ -78,6 +86,7 @@ export function useFileTreeInstance({
   const statePropsRef = useRef<
     FileTreeStateConfig & {
       initialFiles?: string[];
+      initialEntries?: FileTreeEntriesInput;
       gitStatus?: GitStatusEntry[];
       onContextMenuOpen?: (
         item: ContextMenuItem,
@@ -87,8 +96,11 @@ export function useFileTreeInstance({
     }
   >({
     files,
+    entries,
     initialFiles,
+    initialEntries,
     onFilesChange,
+    onEntriesChange,
     editSession,
     expandedItems,
     selectedItems,
@@ -105,8 +117,11 @@ export function useFileTreeInstance({
   });
   statePropsRef.current = {
     files,
+    entries,
     initialFiles,
+    initialEntries,
     onFilesChange,
+    onEntriesChange,
     editSession,
     expandedItems,
     selectedItems,
@@ -174,9 +189,12 @@ export function useFileTreeInstance({
         return new FileTree(
           {
             ...options,
-            initialFiles:
+            initialEntries:
+              sp.initialEntries ??
+              sp.entries ??
               sp.initialFiles ??
               sp.files ??
+              optionsWithFiles.initialEntries ??
               optionsWithFiles.initialFiles ??
               [],
             id: existingId,
@@ -196,6 +214,7 @@ export function useFileTreeInstance({
             onSelectedItemsChange: sp.onSelectedItemsChange,
             onSelection: sp.onSelection,
             onFilesChange: sp.onFilesChange,
+            onEntriesChange: sp.onEntriesChange,
             onEditSessionChange: sp.onEditSessionChange,
             onContextMenuOpen: sp.onContextMenuOpen,
             onContextMenuClose: sp.onContextMenuClose,
@@ -205,17 +224,25 @@ export function useFileTreeInstance({
 
       const setupControlledDnD = (inst: FileTree): void => {
         const sp = statePropsRef.current;
-        if (sp.files !== undefined && options.dragAndDrop === true) {
+        if (sp.entries !== undefined) {
           inst.setCallbacks({
-            _onDragMoveFiles: (newFiles) => {
-              sp.onFilesChange?.(newFiles);
+            _onEntriesMutate: (newEntries) => {
+              sp.onEntriesChange?.(newEntries);
+              sp.onFilesChange?.(
+                newEntries
+                  .filter((entry) => entry.type === 'file')
+                  .map((entry) => entry.path)
+              );
             },
           });
-        }
-        if (sp.files !== undefined) {
+        } else if (sp.files !== undefined) {
           inst.setCallbacks({
-            _onEditMutateFiles: (newFiles) => {
-              sp.onFilesChange?.(newFiles);
+            _onEntriesMutate: (newEntries) => {
+              sp.onFilesChange?.(
+                newEntries
+                  .filter((entry) => entry.type === 'file')
+                  .map((entry) => entry.path)
+              );
             },
           });
         }
@@ -280,6 +307,13 @@ export function useFileTreeInstance({
     }
   }, [files]);
 
+  // Sync controlled entries imperatively (no tree recreation)
+  useEffect(() => {
+    if (entries !== undefined && instanceRef.current != null) {
+      instanceRef.current.setEntries(entries);
+    }
+  }, [entries]);
+
   // Sync controlled expanded items imperatively (no tree recreation)
   useEffect(() => {
     if (expandedItems !== undefined && instanceRef.current != null) {
@@ -321,20 +355,27 @@ export function useFileTreeInstance({
       onSelectedItemsChange,
       onSelection,
       onFilesChange,
+      onEntriesChange,
       onEditSessionChange,
       onContextMenuOpen,
       onContextMenuClose,
-      // In controlled DnD mode, override to only fire onFilesChange
-      // without calling setFiles() directly, letting the parent decide.
-      ...(files !== undefined &&
-        options.dragAndDrop === true && {
-          _onDragMoveFiles: (newFiles) => {
-            onFilesChange?.(newFiles);
-          },
-        }),
       ...(files !== undefined && {
-        _onEditMutateFiles: (newFiles) => {
-          onFilesChange?.(newFiles);
+        _onEntriesMutate: (newEntries) => {
+          onFilesChange?.(
+            newEntries
+              .filter((entry) => entry.type === 'file')
+              .map((entry) => entry.path)
+          );
+        },
+      }),
+      ...(entries !== undefined && {
+        _onEntriesMutate: (newEntries) => {
+          onEntriesChange?.(newEntries);
+          onFilesChange?.(
+            newEntries
+              .filter((entry) => entry.type === 'file')
+              .map((entry) => entry.path)
+          );
         },
       }),
       ...(editSession !== undefined && {
@@ -348,10 +389,12 @@ export function useFileTreeInstance({
     onSelectedItemsChange,
     onSelection,
     onFilesChange,
+    onEntriesChange,
     onEditSessionChange,
     onContextMenuOpen,
     onContextMenuClose,
     files,
+    entries,
     editSession,
     options.dragAndDrop,
   ]);

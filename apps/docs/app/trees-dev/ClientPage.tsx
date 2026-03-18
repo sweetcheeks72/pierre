@@ -43,6 +43,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+const SHARED_DEMO_FILES = sharedDemoFileTreeOptions.initialFiles ?? [];
+
 function cleanupFileTreeInstance(
   container: HTMLElement,
   instanceRef: { current: FileTree | null }
@@ -1182,7 +1184,7 @@ function VanillaDynamicFiles({
       }
 
       const fileTree = new FileTree(
-        { ...options, initialFiles: sharedDemoFileTreeOptions.initialFiles },
+        { ...options, initialFiles: SHARED_DEMO_FILES },
         stateConfig
       );
       fileTree.render({ containerWrapper: node });
@@ -1207,10 +1209,7 @@ function VanillaDynamicFiles({
             className="rounded-sm border px-2 py-1 text-xs"
             style={{ borderColor: 'var(--color-border)' }}
             onClick={() => {
-              instanceRef.current?.setFiles([
-                ...sharedDemoFileTreeOptions.initialFiles,
-                EXTRA_FILE,
-              ]);
+              instanceRef.current?.setFiles([...SHARED_DEMO_FILES, EXTRA_FILE]);
               setHasExtra(true);
             }}
           >
@@ -1221,9 +1220,7 @@ function VanillaDynamicFiles({
             className="rounded-sm border px-2 py-1 text-xs"
             style={{ borderColor: 'var(--color-border)' }}
             onClick={() => {
-              instanceRef.current?.setFiles(
-                sharedDemoFileTreeOptions.initialFiles
-              );
+              instanceRef.current?.setFiles(SHARED_DEMO_FILES);
               setHasExtra(false);
             }}
           >
@@ -1253,7 +1250,7 @@ function ReactControlledFiles({
   options: Omit<FileTreeOptions, 'initialFiles'>;
   stateConfig?: FileTreeStateConfig;
 }) {
-  const [files, setFiles] = useState(sharedDemoFileTreeOptions.initialFiles);
+  const [files, setFiles] = useState(SHARED_DEMO_FILES);
   const [onFilesChangeCalls, setOnFilesChangeCalls] = useState(0);
 
   const handleFilesChange = useCallback((nextFiles: string[]) => {
@@ -1326,7 +1323,7 @@ function ReactSSRControlledFiles({
   stateConfig?: FileTreeStateConfig;
   prerenderedHTML: string;
 }) {
-  const [files, setFiles] = useState(sharedDemoFileTreeOptions.initialFiles);
+  const [files, setFiles] = useState(SHARED_DEMO_FILES);
   const [onFilesChangeCalls, setOnFilesChangeCalls] = useState(0);
 
   const handleFilesChange = useCallback((nextFiles: string[]) => {
@@ -1431,7 +1428,7 @@ function VanillaDnDUncontrolled({
         {
           ...options,
           dragAndDrop: true,
-          initialFiles: sharedDemoFileTreeOptions.initialFiles,
+          initialFiles: SHARED_DEMO_FILES,
         },
         mergedStateConfig
       );
@@ -1474,7 +1471,7 @@ function ReactDnDControlled({
   options: Omit<FileTreeOptions, 'initialFiles'>;
   stateConfig?: FileTreeStateConfig;
 }) {
-  const [files, setFiles] = useState(sharedDemoFileTreeOptions.initialFiles);
+  const [files, setFiles] = useState(SHARED_DEMO_FILES);
   const [lockGitignore, setLockGitignore] = useState(false);
   const { log, addLog } = useStateLog();
 
@@ -1547,7 +1544,7 @@ function ReactDnDControlledSSR({
   stateConfig?: FileTreeStateConfig;
   prerenderedHTML: string;
 }) {
-  const [files, setFiles] = useState(sharedDemoFileTreeOptions.initialFiles);
+  const [files, setFiles] = useState(SHARED_DEMO_FILES);
   const [lockGitignore, setLockGitignore] = useState(false);
   const { log, addLog } = useStateLog();
 

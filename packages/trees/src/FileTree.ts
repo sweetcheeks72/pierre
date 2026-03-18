@@ -10,6 +10,8 @@ import { SVGSpriteSheet } from './sprite';
 import type {
   ContextMenuItem,
   ContextMenuOpenContext,
+  FileTreeEntriesInput,
+  FileTreeEntry,
   FileTreeNode,
   GitStatusEntry,
 } from './types';
@@ -22,6 +24,7 @@ import {
   filterOrphanedPaths,
   isOrphanedPathForExpandedSet,
 } from './utils/expandPaths';
+import { entriesToFiles, normalizeEntries } from './utils/normalizeEntries';
 import {
   preactHydrateRoot,
   preactRenderRoot,
@@ -31,8 +34,31 @@ import type { ChildrenComparator } from './utils/sortChildren';
 
 export type { GitStatusEntry } from './types';
 export type { FileTreeEditSession } from './utils/computeEditedFiles';
+export type {
+  FileTreeEntriesInput,
+  FileTreeEntry,
+  FileTreeEntryType,
+} from './types';
 
 let instanceId = -1;
+
+function entriesAreEqual(
+  left: FileTreeEntry[],
+  right: FileTreeEntry[]
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (left.length !== right.length) {
+    return false;
+  }
+  for (let i = 0; i < left.length; i++) {
+    if (left[i]?.path !== right[i]?.path || left[i]?.type !== right[i]?.type) {
+      return false;
+    }
+  }
+  return true;
+}
 
 interface FileTreeRenderProps {
   fileTreeContainer?: HTMLElement;
@@ -75,6 +101,7 @@ export interface FileTreeCallbacks {
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onEntriesChange?: (entries: FileTreeEntry[]) => void;
   onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
@@ -85,6 +112,8 @@ export interface FileTreeCallbacks {
   _onDragMoveFiles?: (newFiles: string[]) => void;
   /** Internal: called when inline editing produces a new file list. */
   _onEditMutateFiles?: (newFiles: string[]) => void;
+  /** Internal: called when structure changes produce a new entry list. */
+  _onEntriesMutate?: (entries: FileTreeEntry[]) => void;
   /** Internal: updates the active edit session. */
   _onEditSessionChange?: (session: FileTreeEditSession | null) => void;
 }
@@ -108,7 +137,8 @@ export interface FileTreeOptions {
   flattenEmptyDirectories?: boolean;
   gitStatus?: GitStatusEntry[];
   id?: string;
-  initialFiles: string[];
+  initialEntries?: FileTreeEntriesInput;
+  initialFiles?: string[];
   /** Paths that cannot be dragged (e.g. ['package.json']). Uses same path form as the tree (no f:: prefix). */
   lockedPaths?: string[];
   /** Return true to overwrite the destination file when a DnD move collides. */
@@ -140,6 +170,7 @@ export interface FileTreeStateConfig {
   expandedItems?: string[];
   selectedItems?: string[];
   files?: string[];
+  entries?: FileTreeEntriesInput;
   editSession?: FileTreeEditSession | null;
 
   // State change callbacks
@@ -147,6 +178,7 @@ export interface FileTreeStateConfig {
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
   onFilesChange?: (files: string[]) => void;
+  onEntriesChange?: (entries: FileTreeEntry[]) => void;
   onEditSessionChange?: (session: FileTreeEditSession | null) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
@@ -181,24 +213,35 @@ export class FileTree {
     public options: FileTreeOptions,
     public stateConfig: FileTreeStateConfig = {}
   ) {
+    const normalizedEntries = normalizeEntries(
+      options.initialEntries ?? options.initialFiles ?? []
+    );
+    this.options = {
+      ...options,
+      initialEntries: normalizedEntries,
+      initialFiles: entriesToFiles(normalizedEntries),
+    };
     if (typeof document !== 'undefined') {
       this.fileTreeContainer = document.createElement(FILE_TREE_TAG_NAME);
     }
-    this.__id = options.id ?? `ft_${isBrowser ? 'brw' : 'srv'}_${++instanceId}`;
+    this.__id =
+      this.options.id ?? `ft_${isBrowser ? 'brw' : 'srv'}_${++instanceId}`;
     this.callbacksRef = {
       current: {
         onExpandedItemsChange: stateConfig.onExpandedItemsChange,
         onSelectedItemsChange: stateConfig.onSelectedItemsChange,
         onSelection: stateConfig.onSelection,
         onFilesChange: stateConfig.onFilesChange,
+        onEntriesChange: stateConfig.onEntriesChange,
         onEditSessionChange: stateConfig.onEditSessionChange,
         onContextMenuOpen: stateConfig.onContextMenuOpen,
         onContextMenuClose: stateConfig.onContextMenuClose,
         _onDragMoveFiles:
-          options.dragAndDrop === true
+          this.options.dragAndDrop === true
             ? (newFiles) => this.setFiles(newFiles)
             : undefined,
         _onEditMutateFiles: (newFiles) => this.setFiles(newFiles),
+        _onEntriesMutate: (entries) => this.setEntries(entries),
         _onEditSessionChange: (session) => {
           this.applyEditSession(session);
           this.callbacksRef.current.onEditSessionChange?.(session);
@@ -390,6 +433,28 @@ export class FileTree {
       );
   }
 
+  setEntries(input: FileTreeEntriesInput): void {
+    const entries = normalizeEntries(input);
+    const currentEntries = this.getEntries();
+    if (entriesAreEqual(currentEntries, entries)) {
+      return;
+    }
+    this.options = {
+      ...this.options,
+      initialEntries: entries,
+      initialFiles: entriesToFiles(entries),
+    };
+    this.callbacksRef.current.onEntriesChange?.(entries);
+    this.callbacksRef.current.onFilesChange?.(entriesToFiles(entries));
+    this.rerender();
+  }
+
+  getEntries(): FileTreeEntry[] {
+    return normalizeEntries(
+      this.options.initialEntries ?? this.options.initialFiles ?? []
+    );
+  }
+
   private applyEditSession(session: FileTreeEditSession | null): void {
     this.stateConfig = { ...this.stateConfig, editSession: session };
     this.rerender();
@@ -414,6 +479,14 @@ export class FileTree {
   startCreatingFile(parentPath?: string, draftName?: string): void {
     this.setEditSession({
       kind: 'new-file',
+      ...(parentPath != null && { parentPath }),
+      ...(draftName != null && { draftName }),
+    });
+  }
+
+  startCreatingFolder(parentPath?: string, draftName?: string): void {
+    this.setEditSession({
+      kind: 'new-folder',
       ...(parentPath != null && { parentPath }),
       ...(draftName != null && { draftName }),
     });
@@ -448,16 +521,11 @@ export class FileTree {
   // --- Heavier updates (re-render) ---
 
   setFiles(files: string[]): void {
-    if (this.options.initialFiles === files) {
-      return;
-    }
-    this.options = { ...this.options, initialFiles: files };
-    this.callbacksRef.current.onFilesChange?.(files);
-    this.rerender();
+    this.setEntries(files);
   }
 
   getFiles(): string[] {
-    return this.options.initialFiles;
+    return this.options.initialFiles ?? [];
   }
 
   setOptions(
@@ -491,6 +559,9 @@ export class FileTree {
     if (state?.onFilesChange !== undefined) {
       this.callbacksRef.current.onFilesChange = state.onFilesChange;
     }
+    if (state?.onEntriesChange !== undefined) {
+      this.callbacksRef.current.onEntriesChange = state.onEntriesChange;
+    }
     if (state?.onEditSessionChange !== undefined) {
       this.callbacksRef.current.onEditSessionChange = state.onEditSessionChange;
     }
@@ -506,6 +577,7 @@ export class FileTree {
       'dragAndDrop',
       'fileTreeSearchMode',
       'gitStatus',
+      'initialEntries',
       'initialFiles',
       'icons',
       'flattenEmptyDirectories',
@@ -524,13 +596,27 @@ export class FileTree {
       }
     }
 
-    const nextFiles = state?.files;
-    const stateFilesChanged =
-      nextFiles !== undefined && this.options.initialFiles !== nextFiles;
+    const nextEntriesInput =
+      state?.entries ??
+      state?.files ??
+      options.initialEntries ??
+      options.initialFiles;
+    const nextEntries =
+      nextEntriesInput !== undefined
+        ? normalizeEntries(nextEntriesInput)
+        : undefined;
+    const stateEntriesProvided = nextEntries !== undefined;
+    const stateEntriesChanged =
+      nextEntries !== undefined &&
+      !entriesAreEqual(this.getEntries(), nextEntries);
     this.options = {
       ...this.options,
       ...options,
-      ...(nextFiles !== undefined && { initialFiles: nextFiles }),
+      ...(stateEntriesProvided &&
+        nextEntries !== undefined && {
+          initialEntries: nextEntries,
+          initialFiles: entriesToFiles(nextEntries),
+        }),
     };
     if (state != null) {
       this.stateConfig = { ...this.stateConfig, ...state };
@@ -541,9 +627,10 @@ export class FileTree {
       needsRerender = true;
     }
 
-    if (needsRerender || stateFilesChanged) {
-      if (stateFilesChanged && nextFiles !== undefined) {
-        this.callbacksRef.current.onFilesChange?.(nextFiles);
+    if (needsRerender || stateEntriesChanged) {
+      if (stateEntriesChanged && nextEntries !== undefined) {
+        this.callbacksRef.current.onEntriesChange?.(nextEntries);
+        this.callbacksRef.current.onFilesChange?.(entriesToFiles(nextEntries));
       }
       this.rerender();
     } else {

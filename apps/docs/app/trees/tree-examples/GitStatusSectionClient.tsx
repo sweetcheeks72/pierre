@@ -22,6 +22,8 @@ import { Button } from '@/components/ui/button';
 import { ButtonGroup, ButtonGroupItem } from '@/components/ui/button-group';
 import { Switch } from '@/components/ui/switch';
 
+const BASE_TREE_FILES = baseTreeOptions.initialFiles ?? [];
+
 export function GitStatusSectionClient({
   prerenderedHTML,
 }: {
@@ -46,12 +48,10 @@ export function GitStatusSectionClient({
 
   const visibleFiles = useMemo(() => {
     if (!enabled || showUnmodified) {
-      return baseTreeOptions.initialFiles;
+      return BASE_TREE_FILES;
     }
     const changedPaths = new Set(activeGitStatus.map((entry) => entry.path));
-    return baseTreeOptions.initialFiles.filter((path) =>
-      changedPaths.has(path)
-    );
+    return BASE_TREE_FILES.filter((path) => changedPaths.has(path));
   }, [activeGitStatus, enabled, showUnmodified]);
   const panelStyle = {
     colorScheme: colorMode,

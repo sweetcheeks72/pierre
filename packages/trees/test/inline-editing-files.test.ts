@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  computeEntriesAfterCreatingFile,
+  computeEntriesAfterCreatingFolder,
+  computeEntriesAfterRename,
   computeFilesAfterCreatingFile,
   computeFilesAfterRename,
 } from '../src/utils/computeEditedFiles';
@@ -66,5 +69,46 @@ describe('inline editing file transforms', () => {
         'ui'
       )
     ).toBeNull();
+  });
+
+  test('preserves explicit empty directories when renaming a folder', () => {
+    expect(
+      computeEntriesAfterRename(
+        [
+          { path: 'src/components', type: 'directory' },
+          { path: 'src/components/empty', type: 'directory' },
+          { path: 'src/components/Button.tsx', type: 'file' },
+        ],
+        'src/components',
+        'ui'
+      )
+    ).toEqual([
+      { path: 'src/ui', type: 'directory' },
+      { path: 'src/ui/empty', type: 'directory' },
+      { path: 'src/ui/Button.tsx', type: 'file' },
+    ]);
+  });
+
+  test('rejects creating a file when an empty directory already uses the path', () => {
+    expect(
+      computeEntriesAfterCreatingFile(
+        [{ path: 'src/index', type: 'directory' }],
+        'src',
+        'index'
+      )
+    ).toBeNull();
+  });
+
+  test('creates an explicit empty directory', () => {
+    expect(
+      computeEntriesAfterCreatingFolder(
+        [{ path: 'src/index.ts', type: 'file' }],
+        'src',
+        'components'
+      )
+    ).toEqual([
+      { path: 'src/index.ts', type: 'file' },
+      { path: 'src/components', type: 'directory' },
+    ]);
   });
 });

@@ -49,13 +49,14 @@ import type {
 import { generateLazyDataLoader } from '../loader/lazy';
 import { generateSyncDataLoaderFromTreeData } from '../loader/sync';
 import type { SVGSpriteNames } from '../sprite';
-import type { FileTreeNode } from '../types';
+import type { FileTreeEntry, FileTreeNode } from '../types';
 import {
-  computeFilesAfterCreatingFile,
-  computeFilesAfterRename,
+  computeEntriesAfterCreatingFile,
+  computeEntriesAfterCreatingFolder,
+  computeEntriesAfterRename,
   normalizeDraftName,
 } from '../utils/computeEditedFiles';
-import { computeNewFilesAfterDrop } from '../utils/computeNewFilesAfterDrop';
+import { computeNewEntriesAfterDrop } from '../utils/computeNewFilesAfterDrop';
 import { controlledExpandedPathsToExpandedIds } from '../utils/controlledExpandedState';
 import {
   expandPathsWithAncestors,
@@ -64,6 +65,7 @@ import {
 import { fileListToTree } from '../utils/fileListToTree';
 import { getGitStatusSignature } from '../utils/getGitStatusSignature';
 import { getSelectionPath } from '../utils/getSelectionPath';
+import { normalizeEntries } from '../utils/normalizeEntries';
 import type { ChildrenSortOption } from '../utils/sortChildren';
 import { useContextMenuController } from './hooks/useContextMenuController';
 import { useTree } from './hooks/useTree';
@@ -99,8 +101,8 @@ function memo<P>(
   return Memoed as unknown as FunctionComponent<P>;
 }
 
-const getFilesSignature = (files: string[]): string =>
-  `${files.length}\0${files.join('\0')}`;
+const getEntriesSignature = (entries: FileTreeEntry[]): string =>
+  `${entries.length}\0${entries.map((entry) => `${entry.type}:${entry.path}`).join('\0')}`;
 
 const EMPTY_ANCESTORS: string[] = [];
 
@@ -448,10 +450,10 @@ function InlineEditorItem({
         <input
           ref={inputRef}
           data-item-edit-input
-          aria-label={isFolder ? 'Rename folder' : 'Edit file name'}
+          aria-label={isFolder ? 'Edit folder name' : 'Edit file name'}
           value={draft}
           onInput={(event) => {
-            setDraft((event.currentTarget).value);
+            setDraft(event.currentTarget.value);
             if (isInvalid) {
               setIsInvalid(false);
             }
@@ -485,7 +487,8 @@ export function Root({
 }: FileTreeRootProps): JSX.Element {
   'use no memo';
   const {
-    initialFiles: files,
+    initialEntries: initialEntriesInput,
+    initialFiles: initialFilesInput,
     flattenEmptyDirectories,
     fileTreeSearchMode,
     gitStatus,
@@ -537,9 +540,13 @@ export function Root({
     [sortOption]
   );
 
+  const entries = useMemo(
+    () => normalizeEntries(initialEntriesInput ?? initialFilesInput ?? []),
+    [initialEntriesInput, initialFilesInput]
+  );
   const treeData = useMemo(
-    () => fileListToTree(files, { sortComparator }),
-    [files, sortComparator]
+    () => fileListToTree(entries, { sortComparator }),
+    [entries, sortComparator]
   );
 
   // Build path↔id maps from treeData
@@ -754,7 +761,7 @@ export function Root({
   const dataLoader = useMemo(
     () =>
       useLazyDataLoader === true
-        ? generateLazyDataLoader(files, {
+        ? generateLazyDataLoader(entries, {
             flattenEmptyDirectories,
             sortComparator,
           })
@@ -762,7 +769,7 @@ export function Root({
             flattenEmptyDirectories,
           }),
     [
-      files,
+      entries,
       flattenEmptyDirectories,
       sortComparator,
       treeData,
@@ -793,9 +800,9 @@ export function Root({
     return base;
   }, [isDnD]);
 
-  // Keep a ref to current files so onDrop doesn't capture stale values
-  const filesRef = useRef(files);
-  filesRef.current = files;
+  // Keep refs to current structure so onDrop doesn't capture stale values.
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
 
   // --- Flattened sub-folder drop targeting ---
   const flattenedDropSubfolderIdRef = useRef<string | null>(null);
@@ -878,13 +885,13 @@ export function Root({
   );
 
   // Keep the previous idToPath so we can translate stale expanded IDs → paths
-  // when files change (DnD or controlled update).
+  // when the structure changes (DnD or controlled update).
   const prevIdToPathRef = useRef<Map<string, string>>(idToPath);
   // DnD-only: pending drop target to auto-expand if/when the exact drop result
-  // is applied to files.
+  // is applied to the current structure.
   const pendingDropTargetExpandRef = useRef<{
     path: string;
-    expectedFilesSignature: string;
+    expectedEntriesSignature: string;
   } | null>(null);
 
   const onDropHandler = useCallback(
@@ -904,8 +911,8 @@ export function Root({
         flattenedDropSubfolderIdRef.current = null;
       }
 
-      const newFiles = computeNewFilesAfterDrop(
-        filesRef.current,
+      const newEntries = computeNewEntriesAfterDrop(
+        entriesRef.current,
         draggedPaths,
         targetPath,
         { onCollision }
@@ -919,13 +926,13 @@ export function Root({
           path: targetPath.startsWith(FLATTENED_PREFIX)
             ? targetPath.slice(FLATTENED_PREFIX.length)
             : targetPath,
-          expectedFilesSignature: getFilesSignature(newFiles),
+          expectedEntriesSignature: getEntriesSignature(newEntries),
         };
       } else {
         pendingDropTargetExpandRef.current = null;
       }
 
-      callbacksRef?.current._onDragMoveFiles?.(newFiles);
+      callbacksRef?.current._onEntriesMutate?.(newEntries);
     },
     [callbacksRef, onCollision, idToPath]
   );
@@ -1050,7 +1057,7 @@ export function Root({
     tree,
     isContextMenuEnabled,
     callbacksRef,
-    files,
+    entries,
     idToPath,
   });
   contextMenuRequestHandlerRef.current = (request: ContextMenuRequest) => {
@@ -1060,6 +1067,11 @@ export function Root({
   const focusedItemId = tree.getState().focusedItem ?? null;
   const hasFocusedItem = focusedItemId != null;
   const activeEditSession = stateConfig?.editSession ?? null;
+  const createEditSession =
+    activeEditSession?.kind === 'new-file' ||
+    activeEditSession?.kind === 'new-folder'
+      ? activeEditSession
+      : null;
   const editingActive = activeEditSession != null;
   const editingActiveRef = useRef(editingActive);
   editingActiveRef.current = editingActive;
@@ -1080,9 +1092,8 @@ export function Root({
   const activeEditTargetId =
     activeEditSession?.kind === 'rename'
       ? getTreeIdForPath(activeEditSession.targetPath)
-      : activeEditSession?.kind === 'new-file' &&
-          activeEditSession.parentPath != null
-        ? getTreeIdForPath(activeEditSession.parentPath)
+      : createEditSession?.parentPath != null
+        ? getTreeIdForPath(createEditSession.parentPath)
         : undefined;
 
   const cancelInlineEditing = useCallback(() => {
@@ -1095,24 +1106,34 @@ export function Root({
         return false;
       }
 
-      const nextFiles =
+      const nextEntries =
         activeEditSession.kind === 'rename'
-          ? computeFilesAfterRename(files, activeEditSession.targetPath, draft)
-          : computeFilesAfterCreatingFile(
-              files,
-              activeEditSession.parentPath ?? '',
+          ? computeEntriesAfterRename(
+              entries,
+              activeEditSession.targetPath,
               draft
-            );
+            )
+          : activeEditSession.kind === 'new-file'
+            ? computeEntriesAfterCreatingFile(
+                entries,
+                activeEditSession.parentPath ?? '',
+                draft
+              )
+            : computeEntriesAfterCreatingFolder(
+                entries,
+                activeEditSession.parentPath ?? '',
+                draft
+              );
 
-      if (nextFiles == null) {
+      if (nextEntries == null) {
         return false;
       }
 
-      callbacksRef?.current._onEditMutateFiles?.(nextFiles);
+      callbacksRef?.current._onEntriesMutate?.(nextEntries);
       callbacksRef?.current._onEditSessionChange?.(null);
       return true;
     },
-    [activeEditSession, callbacksRef, files]
+    [activeEditSession, callbacksRef, entries]
   );
 
   useEffect(() => {
@@ -1152,7 +1173,8 @@ export function Root({
 
   useEffect(() => {
     if (
-      activeEditSession?.kind !== 'new-file' ||
+      (activeEditSession?.kind !== 'new-file' &&
+        activeEditSession?.kind !== 'new-folder') ||
       activeEditTargetId == null ||
       activeEditTargetId === 'root'
     ) {
@@ -1172,10 +1194,10 @@ export function Root({
     tree.rebuildTree();
   }, [activeEditSession, activeEditTargetId, tree]);
 
-  // Detect stale expanded IDs when the file list changes. Flattened chains
+  // Detect stale expanded IDs when the structure changes. Flattened chains
   // may break or form, causing node IDs to change. We snapshot the expanded
   // paths using the OLD idToPath so the effect can re-map them to new IDs.
-  // This covers both DnD drops and controlled file updates.
+  // This covers both DnD drops and controlled entry updates.
   const pendingExpandMigrationRef = useRef<string[] | null>(null);
   if (prevIdToPathRef.current !== idToPath) {
     const currentExpandedIds = tree.getState().expandedItems ?? [];
@@ -1208,17 +1230,18 @@ export function Root({
     };
   }, [closeContextMenu, tree, pathToId, idToPath, handleRef]);
 
-  // --- Migrate expanded state after file list changes ---
-  // When the file list changes (DnD drop or controlled update), flattened
+  // --- Migrate expanded state after structure changes ---
+  // When the structure changes (DnD drop or controlled update), flattened
   // chains may break or form, changing node IDs. This effect re-maps the
   // previously-expanded paths to new IDs and optionally expands a drop target
-  // when the applied files match a pending drop result.
+  // when the applied entries match a pending drop result.
   useEffect(() => {
     const previousPaths = pendingExpandMigrationRef.current;
     const pendingDropTarget = pendingDropTargetExpandRef.current;
     const dropTarget =
       pendingDropTarget != null &&
-      pendingDropTarget.expectedFilesSignature === getFilesSignature(files)
+      pendingDropTarget.expectedEntriesSignature ===
+        getEntriesSignature(entries)
         ? pendingDropTarget.path
         : null;
     pendingExpandMigrationRef.current = null;
@@ -1250,7 +1273,7 @@ export function Root({
       ]);
     }
     tree.rebuildTree();
-  }, [files, pathToId, tree, flattenEmptyDirectories]);
+  }, [entries, pathToId, tree, flattenEmptyDirectories]);
 
   // --- Selection change callback ---
   const selectionSnapshotRef = useRef<string | null>(null);
@@ -1444,21 +1467,21 @@ export function Root({
             ? new Set(lockedPaths)
             : null;
 
-        let newFileInsertIndex: number | null = null;
-        let newFileLevel = 0;
-        let newFileAncestors: string[] = EMPTY_ANCESTORS;
-        if (activeEditSession?.kind === 'new-file') {
+        let createInsertIndex: number | null = null;
+        let createLevel = 0;
+        let createAncestors: string[] = EMPTY_ANCESTORS;
+        if (createEditSession != null) {
           if (activeEditTargetId == null) {
-            newFileInsertIndex = 0;
+            createInsertIndex = 0;
           } else {
             for (let index = 0; index < items.length; index++) {
               const candidate = items[index];
               if (candidate?.getId() !== activeEditTargetId) {
                 continue;
               }
-              newFileInsertIndex = index + 1;
-              newFileLevel = candidate.getItemMeta().level + 1;
-              newFileAncestors = [
+              createInsertIndex = index + 1;
+              createLevel = candidate.getItemMeta().level + 1;
+              createAncestors = [
                 ...getAncestors(candidate.getId()),
                 candidate.getId(),
               ];
@@ -1468,17 +1491,19 @@ export function Root({
         }
 
         const renderItemAtIndex = (index: number) => {
-          if (
-            activeEditSession?.kind === 'new-file' &&
-            newFileInsertIndex === index
-          ) {
+          if (createEditSession != null && createInsertIndex === index) {
             return (
               <InlineEditorItem
-                key="__file_tree_new_file__"
-                ancestors={newFileAncestors}
-                initialValue={activeEditSession.draftName ?? 'untitled.tsx'}
-                isFolder={false}
-                level={newFileLevel}
+                key={`__file_tree_${createEditSession.kind}__`}
+                ancestors={createAncestors}
+                initialValue={
+                  createEditSession.draftName ??
+                  (createEditSession.kind === 'new-folder'
+                    ? 'untitled-folder'
+                    : 'untitled.tsx')
+                }
+                isFolder={createEditSession.kind === 'new-folder'}
+                level={createLevel}
                 onCancel={cancelInlineEditing}
                 onCommit={commitInlineEditing}
                 remapIcon={remapIcon}
@@ -1486,9 +1511,9 @@ export function Root({
             );
           }
           const itemIndex =
-            activeEditSession?.kind === 'new-file' &&
-            newFileInsertIndex != null &&
-            index > newFileInsertIndex
+            createEditSession != null &&
+            createInsertIndex != null &&
+            index > createInsertIndex
               ? index - 1
               : index;
           const item = items[itemIndex];
@@ -1600,7 +1625,7 @@ export function Root({
 
         const shouldVirtualizeItems = shouldVirtualize && !editingActive;
         const renderedItemCount =
-          activeEditSession?.kind === 'new-file' && newFileInsertIndex != null
+          createEditSession != null && createInsertIndex != null
             ? items.length + 1
             : items.length;
 

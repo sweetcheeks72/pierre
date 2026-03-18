@@ -1,9 +1,10 @@
 import type { TreeDataLoader } from '@headless-tree/core';
 
 import { FLATTENED_PREFIX } from '../constants';
-import type { FileTreeNode } from '../types';
+import type { FileTreeEntriesInput, FileTreeNode } from '../types';
 import { createIdMaps } from '../utils/createIdMaps';
 import { createLoaderUtils } from '../utils/createLoaderUtils';
+import { normalizeEntries } from '../utils/normalizeEntries';
 import { defaultChildrenComparator, sortChildren } from '../utils/sortChildren';
 import type { DataLoaderOptions } from './index';
 
@@ -12,11 +13,11 @@ import type { DataLoaderOptions } from './index';
  * Best for large trees where most folders remain collapsed.
  * Tradeoff: deeper navigation may trigger incremental work and caching.
  *
- * @param filePaths - Array of file path strings
+ * @param input - Homogeneous path input, either `string[]` files or explicit entries
  * @param options - Configuration options
  */
 export function generateLazyDataLoader(
-  filePaths: string[],
+  input: FileTreeEntriesInput,
   options: DataLoaderOptions = {}
 ): TreeDataLoader<FileTreeNode> {
   const {
@@ -26,31 +27,41 @@ export function generateLazyDataLoader(
     sortComparator = defaultChildrenComparator,
   } = options;
 
-  // Pre-sort for efficient prefix matching
-  const sortedPaths = [...filePaths].sort();
+  const entries = normalizeEntries(input);
+  const filePaths = entries
+    .filter((entry) => entry.type === 'file')
+    .map((entry) => entry.path);
+  const directoryPaths = entries
+    .filter((entry) => entry.type === 'directory')
+    .map((entry) => entry.path);
 
-  const lowerBound = (target: string): number => {
-    let lo = 0;
-    let hi = sortedPaths.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1;
-      if (sortedPaths[mid] < target) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    return lo;
-  };
-
-  // Pre-compute folder set (fast O(n) scan)
+  // Pre-compute folder and child relationships from explicit entries.
   const folderSet = new Set<string>();
-  for (const path of sortedPaths) {
+  const directChildrenSets = new Map<string, Set<string>>();
+  directChildrenSets.set(rootId, new Set());
+
+  for (const entry of entries) {
+    const parts = entry.path.split('/');
     let current = '';
-    const parts = path.split('/');
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = current !== '' ? `${current}/${parts[i]}` : parts[i];
-      folderSet.add(current);
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isLeaf = i === parts.length - 1;
+      const parentPath = current === '' ? rootId : current;
+      current = current !== '' ? `${current}/${part}` : part;
+
+      let parentChildren = directChildrenSets.get(parentPath);
+      if (parentChildren == null) {
+        parentChildren = new Set();
+        directChildrenSets.set(parentPath, parentChildren);
+      }
+      parentChildren.add(current);
+
+      if (!isLeaf || entry.type === 'directory') {
+        folderSet.add(current);
+        if (!directChildrenSets.has(current)) {
+          directChildrenSets.set(current, new Set());
+        }
+      }
     }
   }
 
@@ -71,39 +82,12 @@ export function generateLazyDataLoader(
     const cached = directChildrenCache.get(parentPath);
     if (cached != null) return cached;
 
-    const children = new Set<string>();
-
-    if (parentPath === rootId) {
-      for (const path of sortedPaths) {
-        const slashIndex = path.indexOf('/');
-        const childSegment = slashIndex >= 0 ? path.slice(0, slashIndex) : path;
-        if (childSegment !== '') {
-          children.add(childSegment);
-        }
-      }
-    } else {
-      const prefix = `${parentPath}/`;
-      const prefixLen = prefix.length;
-      // Jump directly into the matching range; then scan forward until we leave it.
-      for (let i = lowerBound(prefix); i < sortedPaths.length; i += 1) {
-        const path = sortedPaths[i];
-        if (!path.startsWith(prefix)) {
-          break;
-        }
-
-        const relativePath = path.slice(prefixLen);
-        if (relativePath === '') continue;
-        const slashIndex = relativePath.indexOf('/');
-        const childSegment =
-          slashIndex >= 0 ? relativePath.slice(0, slashIndex) : relativePath;
-        if (childSegment !== '') {
-          children.add(`${parentPath}/${childSegment}`);
-        }
-      }
-    }
-
     // Sort children using the configured comparator
-    const result = sortChildren([...children], isFolder, sortComparator);
+    const result = sortChildren(
+      [...(directChildrenSets.get(parentPath) ?? new Set<string>())],
+      isFolder,
+      sortComparator
+    );
     directChildrenCache.set(parentPath, result);
     return result;
   };
@@ -132,7 +116,10 @@ export function generateLazyDataLoader(
 
   const { getIdForKey, getKeyForId } = createIdMaps(rootId);
   const allKeys = new Set<string>([rootId]);
-  for (const path of sortedPaths) {
+  for (const path of filePaths) {
+    allKeys.add(path);
+  }
+  for (const path of directoryPaths) {
     allKeys.add(path);
   }
   for (const folder of folderSet) {

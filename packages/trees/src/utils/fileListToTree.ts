@@ -1,7 +1,8 @@
 import { FLATTENED_PREFIX } from '../constants';
-import type { FileTreeNode } from '../types';
+import type { FileTreeEntriesInput, FileTreeNode } from '../types';
 import { createIdMaps } from './createIdMaps';
 import { createLoaderUtils } from './createLoaderUtils';
+import { normalizeEntries } from './normalizeEntries';
 import type { ChildrenSortOption } from './sortChildren';
 import { defaultChildrenComparator, sortChildren } from './sortChildren';
 
@@ -14,19 +15,19 @@ export interface FileListToTreeOptions {
 const ROOT_ID = 'root';
 
 /**
- * Converts a list of file paths into a tree structure suitable for use with FileTree.
+ * Converts file paths or explicit entries into a tree structure suitable for use with FileTree.
  * Generates both direct children and flattened children (single-child folder chains).
  *
  * Time complexity: O(n * d) where n = number of files, d = average path depth
  * Space complexity: O(n * d) for storing all nodes and folder relationships
  *
- * @param filePaths - Array of file path strings (e.g., ['src/index.ts', 'src/utils/helper.ts'])
+ * @param input - Homogeneous path input, either `string[]` files or explicit entries
  * @param options - Optional configuration for root node
  * @returns A record mapping node IDs (hashed) to FileTreeNode objects
  *   with the original path stored on each node's `path` field
  */
 export function fileListToTree(
-  filePaths: string[],
+  input: FileTreeEntriesInput,
   options: FileListToTreeOptions = {}
 ): Record<string, FileTreeNode> {
   const {
@@ -34,25 +35,27 @@ export function fileListToTree(
     rootName = ROOT_ID,
     sortComparator = defaultChildrenComparator,
   } = options;
+  const entries = normalizeEntries(input);
 
   const tree: Record<string, FileTreeNode> = {};
   const folderChildren: Map<string, Set<string>> = new Map();
+  const filePaths: string[] = [];
 
   // Initialize root's children set
   folderChildren.set(rootId, new Set());
 
-  // Build the folder structure from file paths
-  for (const filePath of filePaths) {
-    const parts = filePath.split('/');
+  // Build folder relationships from explicit entries. Directories become
+  // first-class nodes even when they have no children.
+  for (const entry of entries) {
+    const parts = entry.path.split('/');
     let currentPath: string | undefined;
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
-      const isFile = i === parts.length - 1;
+      const isLeaf = i === parts.length - 1;
       const parentPath = currentPath ?? rootId;
       currentPath = currentPath != null ? `${currentPath}/${part}` : part;
 
-      // Ensure parent has a children set and add current path
       let parentChildren = folderChildren.get(parentPath);
       if (parentChildren == null) {
         parentChildren = new Set();
@@ -60,13 +63,18 @@ export function fileListToTree(
       }
       parentChildren.add(currentPath);
 
-      if (isFile) {
-        // Create file node (no children)
-        tree[currentPath] ??= { name: part, path: currentPath };
-      } else if (!folderChildren.has(currentPath)) {
-        // Ensure folder has a children set for tracking
+      const shouldCreateFolder = !isLeaf || entry.type === 'directory';
+      if (shouldCreateFolder && !folderChildren.has(currentPath)) {
         folderChildren.set(currentPath, new Set());
       }
+    }
+
+    if (entry.type === 'file') {
+      filePaths.push(entry.path);
+      const lastSlashIndex = entry.path.lastIndexOf('/');
+      const name =
+        lastSlashIndex >= 0 ? entry.path.slice(lastSlashIndex + 1) : entry.path;
+      tree[entry.path] ??= { name, path: entry.path };
     }
   }
 

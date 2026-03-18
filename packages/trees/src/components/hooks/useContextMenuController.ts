@@ -6,7 +6,7 @@ import {
   CONTEXT_MENU_TRIGGER_TYPE,
 } from '../../constants';
 import type { FileTreeCallbacks } from '../../FileTree';
-import type { FileTreeNode } from '../../types';
+import type { FileTreeEntry, FileTreeNode } from '../../types';
 import { getSelectionPath } from '../../utils/getSelectionPath';
 
 const BLOCKED_CONTEXT_MENU_NAV_KEYS = new Set([
@@ -24,7 +24,7 @@ export interface UseContextMenuControllerArgs {
   tree: TreeInstance<FileTreeNode>;
   isContextMenuEnabled: boolean;
   callbacksRef?: { current: FileTreeCallbacks };
-  files: string[];
+  entries: FileTreeEntry[];
   idToPath: Map<string, string>;
 }
 
@@ -53,7 +53,7 @@ export function useContextMenuController({
   tree,
   isContextMenuEnabled,
   callbacksRef,
-  files,
+  entries,
   idToPath,
 }: UseContextMenuControllerArgs): UseContextMenuControllerResult {
   const [contextMenuItemId, setContextMenuItemId] = useState<string | null>(
@@ -510,12 +510,12 @@ export function useContextMenuController({
     closeContextMenu();
   }, [closeContextMenu, contextMenuItemId, isContextMenuEnabled]);
 
-  const prevContextMenuStructureRef = useRef({ files, idToPath });
+  const prevContextMenuStructureRef = useRef({ entries, idToPath });
   useEffect(() => {
     const previous = prevContextMenuStructureRef.current;
-    prevContextMenuStructureRef.current = { files, idToPath };
+    prevContextMenuStructureRef.current = { entries, idToPath };
     const structureChanged =
-      previous.files !== files || previous.idToPath !== idToPath;
+      previous.entries !== entries || previous.idToPath !== idToPath;
     if (
       !isContextMenuEnabled ||
       contextMenuItemId == null ||
@@ -527,7 +527,7 @@ export function useContextMenuController({
   }, [
     closeContextMenu,
     contextMenuItemId,
-    files,
+    entries,
     idToPath,
     isContextMenuEnabled,
   ]);
