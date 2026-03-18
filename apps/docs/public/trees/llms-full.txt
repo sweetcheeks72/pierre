@@ -754,7 +754,7 @@ match your tree file paths (for example, `src/index.ts`).
 
 In vanilla JS you can also update status imperatively:
 
-- `fileTree.setGitStatus(gitStatus | undefined)` updates statuses and re-renders.
+- `fileTree.setGitStatus(entries | undefined)` updates statuses and re-renders.
 - `fileTree.getGitStatus()` returns the current `GitStatusEntry[] | undefined`.
 
 When `gitStatus` is provided, tree rows include status-aware attributes you can
