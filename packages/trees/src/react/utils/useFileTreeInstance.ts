@@ -231,7 +231,7 @@ export function useFileTreeInstance<
 
         if (sp.files !== undefined) {
           instance.setCallbacks({
-            _onEntriesMutate: (newEntries) => {
+            _onFilesMutate: (newEntries) => {
               sp.onFilesChange?.(
                 formatEntriesForInputMode<TFiles>(newEntries, sp.filesInputMode)
               );
@@ -333,7 +333,7 @@ export function useFileTreeInstance<
       onContextMenuOpen,
       onContextMenuClose,
       ...(files !== undefined && {
-        _onEntriesMutate: (newEntries) => {
+        _onFilesMutate: (newEntries) => {
           onFilesChange?.(
             formatEntriesForInputMode<TFiles>(
               newEntries,

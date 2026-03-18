@@ -348,11 +348,11 @@ describe('React controlled FileTree wrapper', () => {
     });
 
     const latestCallbacks = setCallbacksSpy.mock.calls.at(-1)?.[0] as
-      | { _onEntriesMutate?: (entries: FileTreeEntry[]) => void }
+      | { _onFilesMutate?: (files: FileTreeEntry[]) => void }
       | undefined;
 
     act(() => {
-      latestCallbacks?._onEntriesMutate?.([
+      latestCallbacks?._onFilesMutate?.([
         { path: 'src/empty', type: 'directory' },
       ]);
     });

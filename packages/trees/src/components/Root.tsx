@@ -931,7 +931,7 @@ export function Root({
         pendingDropTargetExpandRef.current = null;
       }
 
-      callbacksRef?.current._onEntriesMutate?.(newEntries);
+      callbacksRef?.current._onFilesMutate?.(newEntries);
     },
     [callbacksRef, onCollision, idToPath]
   );
@@ -1128,7 +1128,7 @@ export function Root({
         return false;
       }
 
-      callbacksRef?.current._onEntriesMutate?.(nextEntries);
+      callbacksRef?.current._onFilesMutate?.(nextEntries);
       callbacksRef?.current._onEditSessionChange?.(null);
       return true;
     },

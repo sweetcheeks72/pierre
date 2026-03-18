@@ -120,8 +120,8 @@ export interface FileTreeCallbacks {
   _onDragMoveFiles?: (newFiles: string[]) => void;
   /** Internal: called when inline editing produces a new file list. */
   _onEditMutateFiles?: (newFiles: string[]) => void;
-  /** Internal: called when structure changes produce a new entry list. */
-  _onEntriesMutate?: (entries: FileTreeEntry[]) => void;
+  /** Internal: called when structure changes produce normalized files. */
+  _onFilesMutate?: (files: FileTreeEntry[]) => void;
   /** Internal: updates the active edit session. */
   _onEditSessionChange?: (session: FileTreeEditSession | null) => void;
 }
@@ -247,7 +247,7 @@ export class FileTree {
             ? (newFiles) => this.setFiles(newFiles)
             : undefined,
         _onEditMutateFiles: (newFiles) => this.setFiles(newFiles),
-        _onEntriesMutate: (entries) => this.setEntries(entries),
+        _onFilesMutate: (files) => this.setEntries(files),
         _onEditSessionChange: (session) => {
           this.applyEditSession(session);
           this.callbacksRef.current.onEditSessionChange?.(session);
