@@ -29,8 +29,8 @@ type FileTreeEntry = {
 };
 
 interface FileTreeOptions {
-  // Optional: homogeneous array of file paths or explicit entries.
-  // Use object entries when you need empty directories.
+  // Optional: homogeneous array of file paths or file objects.
+  // Use file objects when you need empty directories.
   initialFiles?: string[] | FileTreeEntry[];
 
   // Optional: unique id for this instance (DOM ids, SSR). Defaults to ft_brw_1, etc.

@@ -12,9 +12,9 @@ import {
 import type { ContextMenuItem, ContextMenuOpenContext } from '../../types';
 import { getGitStatusSignature } from '../../utils/getGitStatusSignature';
 import {
-  detectEntriesInputMode,
-  type FileTreeInputMode,
-  formatEntriesForInputMode,
+  detectFilesInputMode,
+  type FileTreeFilesInputMode,
+  formatFilesForInputMode,
 } from '../../utils/normalizeEntries';
 
 interface UseFileTreeInstanceProps<TFiles extends FileTreeEntriesInput> {
@@ -70,7 +70,7 @@ type StateProps<TFiles extends FileTreeEntriesInput> = Omit<
   files?: TFiles;
   initialFiles?: TFiles;
   onFilesChange?: (files: TFiles) => void;
-  filesInputMode: FileTreeInputMode;
+  filesInputMode: FileTreeFilesInputMode;
   gitStatus?: GitStatusEntry[];
   onContextMenuOpen?: (
     item: ContextMenuItem,
@@ -106,10 +106,10 @@ export function useFileTreeInstance<
   const initialFilesInput =
     initialFiles ?? (options.initialFiles as TFiles | undefined);
   const filesInputModeRef = useRef(
-    detectEntriesInputMode(files ?? initialFilesInput)
+    detectFilesInputMode(files ?? initialFilesInput)
   );
 
-  filesInputModeRef.current = detectEntriesInputMode(
+  filesInputModeRef.current = detectFilesInputMode(
     files ?? initialFilesInput,
     filesInputModeRef.current
   );
@@ -233,7 +233,7 @@ export function useFileTreeInstance<
           instance.setCallbacks({
             _onFilesMutate: (newEntries) => {
               sp.onFilesChange?.(
-                formatEntriesForInputMode<TFiles>(newEntries, sp.filesInputMode)
+                formatFilesForInputMode<TFiles>(newEntries, sp.filesInputMode)
               );
             },
           });
@@ -335,7 +335,7 @@ export function useFileTreeInstance<
       ...(files !== undefined && {
         _onFilesMutate: (newEntries) => {
           onFilesChange?.(
-            formatEntriesForInputMode<TFiles>(
+            formatFilesForInputMode<TFiles>(
               newEntries,
               filesInputModeRef.current
             )

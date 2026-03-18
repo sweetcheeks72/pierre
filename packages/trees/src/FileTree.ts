@@ -25,9 +25,9 @@ import {
   isOrphanedPathForExpandedSet,
 } from './utils/expandPaths';
 import {
-  detectEntriesInputMode,
-  type FileTreeInputMode,
-  formatEntriesForInputMode,
+  detectFilesInputMode,
+  type FileTreeFilesInputMode,
+  formatFilesForInputMode,
   normalizeEntries,
 } from './utils/normalizeEntries';
 import {
@@ -213,17 +213,17 @@ export class FileTree {
   private expandPathsCacheFor: Map<string, string> | null = null;
   private childCountCache: Map<string, number> | null = null;
   private childCountCacheFor: Map<string, string> | null = null;
-  private filesInputMode: FileTreeInputMode = 'paths';
+  private filesInputMode: FileTreeFilesInputMode = 'paths';
 
   constructor(
     public options: FileTreeOptions,
     public stateConfig: FileTreeStateConfig = {}
   ) {
-    this.filesInputMode = detectEntriesInputMode(options.initialFiles);
+    this.filesInputMode = detectFilesInputMode(options.initialFiles);
     const normalizedEntries = normalizeEntries(options.initialFiles ?? []);
     this.options = {
       ...options,
-      initialFiles: formatEntriesForInputMode(
+      initialFiles: formatFilesForInputMode(
         normalizedEntries,
         this.filesInputMode
       ),
@@ -247,7 +247,7 @@ export class FileTree {
             ? (newFiles) => this.setFiles(newFiles)
             : undefined,
         _onEditMutateFiles: (newFiles) => this.setFiles(newFiles),
-        _onFilesMutate: (files) => this.setEntries(files),
+        _onFilesMutate: (files) => this.setNormalizedFiles(files),
         _onEditSessionChange: (session) => {
           this.applyEditSession(session);
           this.callbacksRef.current.onEditSessionChange?.(session);
@@ -439,23 +439,26 @@ export class FileTree {
       );
   }
 
-  setEntries(input: FileTreeEntriesInput): void {
-    const entries = normalizeEntries(input);
-    const currentEntries = this.getEntries();
-    if (entriesAreEqual(currentEntries, entries)) {
+  private setNormalizedFiles(input: FileTreeEntriesInput): void {
+    const normalizedFiles = normalizeEntries(input);
+    const currentFiles = this.getNormalizedFiles();
+    if (entriesAreEqual(currentFiles, normalizedFiles)) {
       return;
     }
     this.options = {
       ...this.options,
-      initialFiles: formatEntriesForInputMode(entries, this.filesInputMode),
+      initialFiles: formatFilesForInputMode(
+        normalizedFiles,
+        this.filesInputMode
+      ),
     };
     this.callbacksRef.current.onFilesChange?.(
-      formatEntriesForInputMode(entries, this.filesInputMode)
+      formatFilesForInputMode(normalizedFiles, this.filesInputMode)
     );
     this.rerender();
   }
 
-  getEntries(): FileTreeEntry[] {
+  private getNormalizedFiles(): FileTreeEntry[] {
     return normalizeEntries(this.options.initialFiles ?? []);
   }
 
@@ -513,8 +516,8 @@ export class FileTree {
 
   // --- Git status ---
 
-  setGitStatus(entries: GitStatusEntry[] | undefined): void {
-    this.options = { ...this.options, gitStatus: entries };
+  setGitStatus(gitStatus: GitStatusEntry[] | undefined): void {
+    this.options = { ...this.options, gitStatus };
     this.rerender();
   }
 
@@ -525,8 +528,8 @@ export class FileTree {
   // --- Heavier updates (re-render) ---
 
   setFiles(files: FileTreeEntriesInput): void {
-    this.filesInputMode = detectEntriesInputMode(files, this.filesInputMode);
-    this.setEntries(files);
+    this.filesInputMode = detectFilesInputMode(files, this.filesInputMode);
+    this.setNormalizedFiles(files);
   }
 
   getFiles(): FileTreeEntriesInput {
@@ -605,9 +608,9 @@ export class FileTree {
     const stateEntriesProvided = nextEntries !== undefined;
     const stateEntriesChanged =
       nextEntries !== undefined &&
-      !entriesAreEqual(this.getEntries(), nextEntries);
+      !entriesAreEqual(this.getNormalizedFiles(), nextEntries);
     if (nextFilesInput !== undefined) {
-      this.filesInputMode = detectEntriesInputMode(
+      this.filesInputMode = detectFilesInputMode(
         nextFilesInput,
         this.filesInputMode
       );
@@ -617,7 +620,7 @@ export class FileTree {
       ...options,
       ...(stateEntriesProvided &&
         nextEntries !== undefined && {
-          initialFiles: formatEntriesForInputMode(
+          initialFiles: formatFilesForInputMode(
             nextEntries,
             this.filesInputMode
           ),
@@ -635,7 +638,7 @@ export class FileTree {
     if (needsRerender || stateEntriesChanged) {
       if (stateEntriesChanged && nextEntries !== undefined) {
         this.callbacksRef.current.onFilesChange?.(
-          formatEntriesForInputMode(nextEntries, this.filesInputMode)
+          formatFilesForInputMode(nextEntries, this.filesInputMode)
         );
       }
       this.rerender();

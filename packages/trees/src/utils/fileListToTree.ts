@@ -15,13 +15,13 @@ export interface FileListToTreeOptions {
 const ROOT_ID = 'root';
 
 /**
- * Converts file paths or explicit entries into a tree structure suitable for use with FileTree.
+ * Converts file paths or file objects into a tree structure suitable for use with FileTree.
  * Generates both direct children and flattened children (single-child folder chains).
  *
  * Time complexity: O(n * d) where n = number of files, d = average path depth
  * Space complexity: O(n * d) for storing all nodes and folder relationships
  *
- * @param input - Homogeneous path input, either `string[]` files or explicit entries
+ * @param input - Homogeneous path input, either `string[]` paths or file objects
  * @param options - Optional configuration for root node
  * @returns A record mapping node IDs (hashed) to FileTreeNode objects
  *   with the original path stored on each node's `path` field
@@ -44,7 +44,7 @@ export function fileListToTree(
   // Initialize root's children set
   folderChildren.set(rootId, new Set());
 
-  // Build folder relationships from explicit entries. Directories become
+  // Build folder relationships from file objects. Directories become
   // first-class nodes even when they have no children.
   for (const entry of entries) {
     const parts = entry.path.split('/');

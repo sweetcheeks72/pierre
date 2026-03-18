@@ -103,10 +103,6 @@ const setFilesSpy = spyOn(
   FileTreeClass.prototype,
   'setFiles'
 ).mockImplementation(() => {});
-const setEntriesSpy = spyOn(
-  FileTreeClass.prototype,
-  'setEntries'
-).mockImplementation(() => {});
 const setEditSessionSpy = spyOn(
   FileTreeClass.prototype,
   'setEditSession'
@@ -119,7 +115,6 @@ const resetMethodMocks = (): void => {
   setSelectedSpy.mockImplementation(() => {});
   setCallbacksSpy.mockImplementation(() => {});
   setFilesSpy.mockImplementation(() => {});
-  setEntriesSpy.mockImplementation(() => {});
   setEditSessionSpy.mockImplementation(() => {});
 };
 
@@ -153,7 +148,6 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockClear();
     setCallbacksSpy.mockClear();
     setFilesSpy.mockClear();
-    setEntriesSpy.mockClear();
     setEditSessionSpy.mockClear();
   });
 
@@ -171,7 +165,6 @@ describe('React controlled FileTree wrapper', () => {
     setSelectedSpy.mockRestore();
     setCallbacksSpy.mockRestore();
     setFilesSpy.mockRestore();
-    setEntriesSpy.mockRestore();
     setEditSessionSpy.mockRestore();
   });
 
@@ -283,14 +276,14 @@ describe('React controlled FileTree wrapper', () => {
     expect(setSelectedSpy).toHaveBeenCalledWith(['README.md']);
   });
 
-  test('calls setEntries when controlled object-mode files prop changes', () => {
-    let setEntries!: (entries: FileTreeEntry[]) => void;
+  test('calls setFiles when controlled object-mode files prop changes', () => {
+    let updateFiles!: (files: FileTreeEntry[]) => void;
 
     function Harness() {
       const [value, setter] = useState<FileTreeEntry[]>([
         { path: 'src', type: 'directory' },
       ]);
-      setEntries = setter;
+      updateFiles = setter;
       return (
         <FileTreeReact options={{}} files={value} onFilesChange={setter} />
       );
@@ -300,30 +293,30 @@ describe('React controlled FileTree wrapper', () => {
       root.render(<Harness />);
     });
 
-    setEntriesSpy.mockClear();
+    setFilesSpy.mockClear();
 
     act(() => {
-      setEntries([
+      updateFiles([
         { path: 'src', type: 'directory' },
         { path: 'src/empty', type: 'directory' },
       ]);
     });
 
-    expect(setEntriesSpy).toHaveBeenCalledWith([
+    expect(setFilesSpy).toHaveBeenCalledWith([
       { path: 'src', type: 'directory' },
       { path: 'src/empty', type: 'directory' },
     ]);
   });
 
   test('preserves object-mode callbacks after controlled files become empty', () => {
-    let setEntries!: (entries: FileTreeEntry[]) => void;
+    let updateFiles!: (files: FileTreeEntry[]) => void;
     const calls: FileTreeEntry[][] = [];
 
     function Harness() {
       const [value, setter] = useState<FileTreeEntry[]>([
         { path: 'src', type: 'directory' },
       ]);
-      setEntries = setter;
+      updateFiles = setter;
 
       const handleFilesChange = (nextFiles: FileTreeEntry[]) => {
         calls.push(nextFiles);
@@ -344,7 +337,7 @@ describe('React controlled FileTree wrapper', () => {
     });
 
     act(() => {
-      setEntries([]);
+      updateFiles([]);
     });
 
     const latestCallbacks = setCallbacksSpy.mock.calls.at(-1)?.[0] as

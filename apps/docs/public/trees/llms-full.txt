@@ -231,8 +231,8 @@ type FileTreeEntry = {
 };
 
 interface FileTreeOptions {
-  // Optional: homogeneous array of file paths or explicit entries.
-  // Use object entries when you need empty directories.
+  // Optional: homogeneous array of file paths or file objects.
+  // Use file objects when you need empty directories.
   initialFiles?: string[] | FileTreeEntry[];
 
   // Optional: unique id for this instance (DOM ids, SSR). Defaults to ft_brw_1, etc.
@@ -754,7 +754,7 @@ match your tree file paths (for example, `src/index.ts`).
 
 In vanilla JS you can also update status imperatively:
 
-- `fileTree.setGitStatus(entries | undefined)` updates statuses and re-renders.
+- `fileTree.setGitStatus(gitStatus | undefined)` updates statuses and re-renders.
 - `fileTree.getGitStatus()` returns the current `GitStatusEntry[] | undefined`.
 
 When `gitStatus` is provided, tree rows include status-aware attributes you can

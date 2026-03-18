@@ -240,7 +240,7 @@ describe('SSR + declarative shadow DOM', () => {
     expect(ft.getFiles()).toEqual(newFiles);
   });
 
-  test('object-mode files stay in entry mode after becoming empty', () => {
+  test('object-mode files stay in object mode after becoming empty', () => {
     const calls: unknown[] = [];
     const ft = new FileTree(
       { initialFiles: [{ path: 'src', type: 'directory' }] },
@@ -248,7 +248,7 @@ describe('SSR + declarative shadow DOM', () => {
     );
 
     ft.setFiles([]);
-    ft.setEntries([{ path: 'src/empty', type: 'directory' }]);
+    ft.setFiles([{ path: 'src/empty', type: 'directory' }]);
 
     expect(ft.getFiles()).toEqual([{ path: 'src/empty', type: 'directory' }]);
     expect(calls.at(-1)).toEqual([{ path: 'src/empty', type: 'directory' }]);

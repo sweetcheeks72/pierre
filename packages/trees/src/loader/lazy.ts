@@ -13,7 +13,7 @@ import type { DataLoaderOptions } from './index';
  * Best for large trees where most folders remain collapsed.
  * Tradeoff: deeper navigation may trigger incremental work and caching.
  *
- * @param input - Homogeneous path input, either `string[]` files or explicit entries
+ * @param input - Homogeneous path input, either `string[]` paths or file objects
  * @param options - Configuration options
  */
 export function generateLazyDataLoader(
@@ -35,7 +35,7 @@ export function generateLazyDataLoader(
     .filter((entry) => entry.type === 'directory')
     .map((entry) => entry.path);
 
-  // Pre-compute folder and child relationships from explicit entries.
+  // Pre-compute folder and child relationships from normalized file objects.
   const folderSet = new Set<string>();
   const directChildrenSets = new Map<string, Set<string>>();
   directChildrenSets.set(rootId, new Set());
