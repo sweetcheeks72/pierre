@@ -14,10 +14,11 @@ import { dragAndDropFeature } from '../src/features/dragAndDropFeature';
 import { canDrop, getDragTarget } from '../src/features/dragAndDropUtils';
 import { fileTreeSearchFeature } from '../src/features/fileTreeSearchFeature';
 import { generateSyncDataLoader } from '../src/loader/sync';
-import type { FileTreeNode } from '../src/types';
+import type { FileTreeEntry, FileTreeFiles, FileTreeNode } from '../src/types';
 import { computeNewFilesAfterDrop } from '../src/utils/computeNewFilesAfterDrop';
 import { expandPathsWithAncestors } from '../src/utils/expandPaths';
 import { fileListToTree } from '../src/utils/fileListToTree';
+import { getFileTreeFilesSignature } from '../src/utils/fileTreeFiles';
 import { buildMapsFromLoader, TEST_CONFIGS } from './test-config';
 
 // ---------------------------------------------------------------------------
@@ -259,6 +260,24 @@ describe('computeNewFilesAfterDrop', () => {
     const files = ['src/index.ts', 'src/components/a.ts'];
     const result = computeNewFilesAfterDrop(files, ['src'], 'src/components');
     expect(result).toEqual(files);
+  });
+
+  test('preserves FileTreeEntry[] shape and moves explicit empty folders', () => {
+    const files: FileTreeEntry[] = [
+      { path: 'src', type: 'folder' },
+      { path: 'src/empty', type: 'folder' },
+      { path: 'src/index.ts', type: 'file' },
+      { path: 'docs', type: 'folder' },
+    ];
+
+    const result = computeNewFilesAfterDrop(files, ['src/empty'], 'docs');
+
+    expect(result).toEqual([
+      { path: 'src', type: 'folder' },
+      { path: 'docs/empty', type: 'folder' },
+      { path: 'src/index.ts', type: 'file' },
+      { path: 'docs', type: 'folder' },
+    ]);
   });
 });
 
@@ -925,7 +944,7 @@ describe('drag-and-drop disabled during search', () => {
  * Unlike buildMapsFromLoader (which walks children), this iterates all entries
  * in the tree data — including intermediate folders in flattened chains.
  */
-function buildMapsFromTreeData(files: string[]) {
+function buildMapsFromTreeData(files: FileTreeFiles) {
   const treeData = fileListToTree(files);
   const pathToId = new Map<string, string>();
   const idToPath = new Map<string, string>();
@@ -941,12 +960,9 @@ type PendingDropTargetExpand = {
   expectedFilesSignature: string;
 };
 
-const getFilesSignature = (files: string[]): string =>
-  `${files.length}\0${files.join('\0')}`;
-
 const createPendingDropTargetExpand = (
   targetFolderPath: string,
-  expectedFiles: string[]
+  expectedFiles: FileTreeFiles
 ): PendingDropTargetExpand | null => {
   const cleanTarget = targetFolderPath.startsWith(FLATTENED_PREFIX)
     ? targetFolderPath.slice(FLATTENED_PREFIX.length)
@@ -954,16 +970,17 @@ const createPendingDropTargetExpand = (
   if (cleanTarget === 'root') return null;
   return {
     path: cleanTarget,
-    expectedFilesSignature: getFilesSignature(expectedFiles),
+    expectedFilesSignature: getFileTreeFilesSignature(expectedFiles),
   };
 };
 
 const resolvePendingDropTargetPaths = (
   pendingDropTarget: PendingDropTargetExpand | null,
-  appliedFiles: string[]
+  appliedFiles: FileTreeFiles
 ): string[] =>
   pendingDropTarget != null &&
-  pendingDropTarget.expectedFilesSignature === getFilesSignature(appliedFiles)
+  pendingDropTarget.expectedFilesSignature ===
+    getFileTreeFilesSignature(appliedFiles)
     ? [pendingDropTarget.path]
     : [];
 

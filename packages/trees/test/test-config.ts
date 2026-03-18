@@ -17,7 +17,7 @@ import type { FileTreeSearchConfig } from '../src/FileTree';
 import type { FileTreeSearchMode } from '../src/FileTree';
 import { generateLazyDataLoader } from '../src/loader/lazy';
 import { generateSyncDataLoader } from '../src/loader/sync';
-import type { FileTreeNode } from '../src/types';
+import type { FileTreeFiles, FileTreeNode } from '../src/types';
 import { expandImplicitParentDirectories } from '../src/utils/expandImplicitParentDirectories';
 import {
   buildDirectChildCountMap,
@@ -31,7 +31,7 @@ export interface TestConfig {
   label: string;
   flattenEmptyDirectories: boolean;
   createLoader: (
-    files: string[],
+    files: FileTreeFiles,
     opts: { flattenEmptyDirectories?: boolean }
   ) => TreeDataLoader<FileTreeNode>;
 }

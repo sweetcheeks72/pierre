@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
-import type { FileTreeData, FileTreeNode } from '../src/types';
+import type {
+  FileTreeData,
+  FileTreeEntry,
+  FileTreeFiles,
+  FileTreeNode,
+} from '../src/types';
 import { fileListToTree } from '../src/utils/fileListToTree';
+import { FILE_TREE_FILES_MIXED_ARRAY_ERROR } from '../src/utils/fileTreeFiles';
 
 type NormalizedTreeNode = Omit<FileTreeNode, 'path'>;
 type NormalizedTree = Record<string, NormalizedTreeNode>;
@@ -34,7 +40,7 @@ const normalizeTree = (tree: FileTreeData): NormalizedTree => {
 };
 
 const buildTree = (
-  files: string[],
+  files: FileTreeFiles,
   options?: Parameters<typeof fileListToTree>[1]
 ): NormalizedTree => normalizeTree(fileListToTree(files, options));
 
@@ -543,5 +549,55 @@ describe('fileListToTree', () => {
       'beta.ts',
     ]);
     expect(tree.pkg.children?.direct).toEqual(['pkg/b.ts', 'pkg/a.ts']);
+  });
+
+  test('should preserve explicit empty directories from FileTreeEntry[]', () => {
+    const files: FileTreeEntry[] = [
+      { path: 'README.md', type: 'file' },
+      { path: 'src', type: 'folder' },
+      { path: 'src/components', type: 'folder' },
+      { path: 'src/components/Button.tsx', type: 'file' },
+      { path: 'src/empty', type: 'folder' },
+      { path: 'docs/guides', type: 'folder' },
+    ];
+    const tree = buildTree(files);
+
+    expect(tree.root.children?.direct).toEqual(['docs', 'src', 'README.md']);
+    expect(tree.docs).toEqual({
+      name: 'docs',
+      children: {
+        direct: ['docs/guides'],
+      },
+    });
+    expect(tree['docs/guides']).toEqual({
+      name: 'guides',
+      children: {
+        direct: [],
+      },
+    });
+    expect(tree['src/empty']).toEqual({
+      name: 'empty',
+      children: {
+        direct: [],
+      },
+    });
+  });
+
+  test('should reject mixed string and FileTreeEntry arrays', () => {
+    expect(() =>
+      fileListToTree([
+        'README.md',
+        { path: 'src', type: 'folder' },
+      ] as unknown as FileTreeFiles)
+    ).toThrow(FILE_TREE_FILES_MIXED_ARRAY_ERROR);
+  });
+
+  test('should reject paths used as both a file and a folder', () => {
+    expect(() =>
+      fileListToTree([
+        { path: 'src', type: 'file' },
+        { path: 'src/components', type: 'file' },
+      ])
+    ).toThrow('FileTree path cannot be both a file and a folder: src');
   });
 });

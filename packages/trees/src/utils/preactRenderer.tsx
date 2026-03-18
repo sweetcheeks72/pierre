@@ -3,20 +3,33 @@ import { hydrate, render } from 'preact';
 
 import type { FileTreeRootProps } from '../components/Root';
 import { Root } from '../components/Root';
+import type { FileTreeFiles } from '../types';
 
 /**
  * Mutable renderer implementation so tests can stub Preact rendering/hydration
  * in jsdom (Preact 11 beta can crash there).
  */
 export const preactRenderer: {
-  renderRoot: (element: HTMLElement, props: FileTreeRootProps) => void;
-  hydrateRoot: (element: HTMLElement, props: FileTreeRootProps) => void;
+  renderRoot: <TFiles extends FileTreeFiles>(
+    element: HTMLElement,
+    props: FileTreeRootProps<TFiles>
+  ) => void;
+  hydrateRoot: <TFiles extends FileTreeFiles>(
+    element: HTMLElement,
+    props: FileTreeRootProps<TFiles>
+  ) => void;
   unmountRoot: (element: HTMLElement) => void;
 } = {
-  renderRoot: (element, props) => {
+  renderRoot: <TFiles extends FileTreeFiles>(
+    element: HTMLElement,
+    props: FileTreeRootProps<TFiles>
+  ) => {
     render(<Root {...props} />, element);
   },
-  hydrateRoot: (element, props) => {
+  hydrateRoot: <TFiles extends FileTreeFiles>(
+    element: HTMLElement,
+    props: FileTreeRootProps<TFiles>
+  ) => {
     hydrate(<Root {...props} />, element);
   },
   unmountRoot: (element) => {
@@ -24,16 +37,16 @@ export const preactRenderer: {
   },
 };
 
-export function preactRenderRoot(
+export function preactRenderRoot<TFiles extends FileTreeFiles>(
   element: HTMLElement,
-  props: FileTreeRootProps
+  props: FileTreeRootProps<TFiles>
 ): void {
   preactRenderer.renderRoot(element, props);
 }
 
-export function preactHydrateRoot(
+export function preactHydrateRoot<TFiles extends FileTreeFiles>(
   element: HTMLElement,
-  props: FileTreeRootProps
+  props: FileTreeRootProps<TFiles>
 ): void {
   preactRenderer.hydrateRoot(element, props);
 }

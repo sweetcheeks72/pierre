@@ -11,6 +11,7 @@ import {
   HEADER_SLOT_NAME,
 } from '../constants';
 import type {
+  FileTreeFiles,
   FileTreeOptions,
   FileTreeSelectionItem,
   GitStatusEntry,
@@ -68,8 +69,8 @@ export function templateRender(
   return <>{children}</>;
 }
 
-export interface FileTreeProps {
-  options: Omit<FileTreeOptions, 'initialFiles'>;
+export interface FileTreeProps<TFiles extends FileTreeFiles = FileTreeFiles> {
+  options: Omit<FileTreeOptions<TFiles>, 'initialFiles'>;
   className?: string;
   style?: React.CSSProperties;
   prerenderedHTML?: string;
@@ -81,11 +82,11 @@ export interface FileTreeProps {
   containerId?: string;
 
   // Default (uncontrolled) files
-  initialFiles?: string[];
+  initialFiles?: TFiles;
 
   // Controlled files
-  files?: string[];
-  onFilesChange?: (files: string[]) => void;
+  files?: TFiles;
+  onFilesChange?: (files: TFiles) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -117,7 +118,7 @@ export interface FileTreeProps {
   onContextMenuClose?: () => void;
 }
 
-export function FileTree({
+export function FileTree<TFiles extends FileTreeFiles = FileTreeFiles>({
   options,
   className,
   style,
@@ -139,7 +140,7 @@ export function FileTree({
   renderContextMenu,
   onContextMenuOpen,
   onContextMenuClose,
-}: FileTreeProps): React.JSX.Element {
+}: FileTreeProps<TFiles>): React.JSX.Element {
   const [activeContextMenuItem, setActiveContextMenuItem] =
     useState<ContextMenuItem | null>(null);
   const [activeContextMenuContext, setActiveContextMenuContext] =

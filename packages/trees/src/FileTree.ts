@@ -10,6 +10,7 @@ import { SVGSpriteSheet } from './sprite';
 import type {
   ContextMenuItem,
   ContextMenuOpenContext,
+  FileTreeFiles,
   FileTreeNode,
   GitStatusEntry,
 } from './types';
@@ -28,7 +29,12 @@ import {
 } from './utils/preactRenderer';
 import type { ChildrenComparator } from './utils/sortChildren';
 
-export type { GitStatusEntry } from './types';
+export type {
+  FileTreeEntry,
+  FileTreeEntryType,
+  FileTreeFiles,
+  GitStatusEntry,
+} from './types';
 
 let instanceId = -1;
 
@@ -68,18 +74,20 @@ export interface FileTreeHandle {
   closeContextMenu?: () => void;
 }
 
-export interface FileTreeCallbacks {
+export interface FileTreeCallbacks<
+  TFiles extends FileTreeFiles = FileTreeFiles,
+> {
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
-  onFilesChange?: (files: string[]) => void;
+  onFilesChange?: (files: TFiles) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
     context: ContextMenuOpenContext
   ) => void;
   onContextMenuClose?: () => void;
   /** Internal: called when a DnD move produces a new file list. */
-  _onDragMoveFiles?: (newFiles: string[]) => void;
+  _onDragMoveFiles?: (newFiles: TFiles) => void;
 }
 
 type RemappedIcon =
@@ -95,13 +103,13 @@ export interface FileTreeIconConfig {
   remap?: Record<string, RemappedIcon>;
 }
 
-export interface FileTreeOptions {
+export interface FileTreeOptions<TFiles extends FileTreeFiles = FileTreeFiles> {
   dragAndDrop?: boolean;
   fileTreeSearchMode?: FileTreeSearchMode;
   flattenEmptyDirectories?: boolean;
   gitStatus?: GitStatusEntry[];
   id?: string;
-  initialFiles: string[];
+  initialFiles: TFiles;
   /** Paths that cannot be dragged (e.g. ['package.json']). Uses same path form as the tree (no f:: prefix). */
   lockedPaths?: string[];
   /** Return true to overwrite the destination file when a DnD move collides. */
@@ -122,7 +130,9 @@ export interface FileTreeOptions {
   icons?: FileTreeIconConfig;
 }
 
-export interface FileTreeStateConfig {
+export interface FileTreeStateConfig<
+  TFiles extends FileTreeFiles = FileTreeFiles,
+> {
   // Initial state (uncontrolled - used once at creation)
   initialExpandedItems?: string[];
   initialSelectedItems?: string[];
@@ -132,13 +142,13 @@ export interface FileTreeStateConfig {
   // Controlled state (applied every render, overrides internal state)
   expandedItems?: string[];
   selectedItems?: string[];
-  files?: string[];
+  files?: TFiles;
 
   // State change callbacks
   onExpandedItemsChange?: (items: string[]) => void;
   onSelectedItemsChange?: (items: string[]) => void;
   onSelection?: (items: FileTreeSelectionItem[]) => void;
-  onFilesChange?: (files: string[]) => void;
+  onFilesChange?: (files: TFiles) => void;
   onContextMenuOpen?: (
     item: ContextMenuItem,
     context: ContextMenuOpenContext
@@ -148,7 +158,7 @@ export interface FileTreeStateConfig {
 
 const isBrowser = typeof document !== 'undefined';
 
-export class FileTree {
+export class FileTree<TFiles extends FileTreeFiles = FileTreeFiles> {
   static LoadedCustomComponent: boolean = FileTreeContainerLoaded;
 
   __id: string;
@@ -161,7 +171,7 @@ export class FileTree {
   readonly handleRef: { current: FileTreeHandle | null } = { current: null };
 
   /** Populated by FileTree, read by the Preact Root for callbacks. */
-  readonly callbacksRef: { current: FileTreeCallbacks };
+  readonly callbacksRef: { current: FileTreeCallbacks<TFiles> };
 
   private expandPathsCache: Map<string, string[]> = new Map();
   private expandPathsCacheFor: Map<string, string> | null = null;
@@ -169,8 +179,8 @@ export class FileTree {
   private childCountCacheFor: Map<string, string> | null = null;
 
   constructor(
-    public options: FileTreeOptions,
-    public stateConfig: FileTreeStateConfig = {}
+    public options: FileTreeOptions<TFiles>,
+    public stateConfig: FileTreeStateConfig<TFiles> = {}
   ) {
     if (typeof document !== 'undefined') {
       this.fileTreeContainer = document.createElement(FILE_TREE_TAG_NAME);
@@ -377,7 +387,7 @@ export class FileTree {
 
   // --- Callbacks ---
 
-  setCallbacks(callbacks: Partial<FileTreeCallbacks>): void {
+  setCallbacks(callbacks: Partial<FileTreeCallbacks<TFiles>>): void {
     const hadContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
     Object.assign(this.callbacksRef.current, callbacks);
     const hasContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
@@ -399,7 +409,7 @@ export class FileTree {
 
   // --- Heavier updates (re-render) ---
 
-  setFiles(files: string[]): void {
+  setFiles(files: TFiles): void {
     if (this.options.initialFiles === files) {
       return;
     }
@@ -408,13 +418,13 @@ export class FileTree {
     this.rerender();
   }
 
-  getFiles(): string[] {
+  getFiles(): TFiles {
     return this.options.initialFiles;
   }
 
   setOptions(
-    options: Partial<FileTreeOptions>,
-    state?: Partial<FileTreeStateConfig>
+    options: Partial<FileTreeOptions<TFiles>>,
+    state?: Partial<FileTreeStateConfig<TFiles>>
   ): void {
     const hadContextMenu = this.callbacksRef.current.onContextMenuOpen != null;
 

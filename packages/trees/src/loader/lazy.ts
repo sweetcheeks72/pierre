@@ -1,9 +1,13 @@
 import type { TreeDataLoader } from '@headless-tree/core';
 
 import { FLATTENED_PREFIX } from '../constants';
-import type { FileTreeNode } from '../types';
+import type { FileTreeFiles, FileTreeNode } from '../types';
 import { createIdMaps } from '../utils/createIdMaps';
 import { createLoaderUtils } from '../utils/createLoaderUtils';
+import {
+  FILE_TREE_PATH_KIND_CONFLICT_ERROR,
+  forEachFileTreeEntry,
+} from '../utils/fileTreeFiles';
 import { defaultChildrenComparator, sortChildren } from '../utils/sortChildren';
 import type { DataLoaderOptions } from './index';
 
@@ -16,7 +20,7 @@ import type { DataLoaderOptions } from './index';
  * @param options - Configuration options
  */
 export function generateLazyDataLoader(
-  filePaths: string[],
+  files: FileTreeFiles,
   options: DataLoaderOptions = {}
 ): TreeDataLoader<FileTreeNode> {
   const {
@@ -26,15 +30,49 @@ export function generateLazyDataLoader(
     sortComparator = defaultChildrenComparator,
   } = options;
 
-  // Pre-sort for efficient prefix matching
-  const sortedPaths = [...filePaths].sort();
+  const filePaths: string[] = [];
+  const fileSet = new Set<string>();
+  const folderSet = new Set<string>();
+
+  forEachFileTreeEntry(files, (inputPath, type) => {
+    const parts = inputPath.split('/');
+    let currentPath = '';
+
+    for (let i = 0; i < parts.length; i += 1) {
+      currentPath =
+        currentPath !== '' ? `${currentPath}/${parts[i]}` : parts[i];
+      const isTerminal = i === parts.length - 1;
+      const isFolder = !isTerminal || type === 'folder';
+
+      if (isFolder) {
+        if (fileSet.has(currentPath)) {
+          throw new Error(FILE_TREE_PATH_KIND_CONFLICT_ERROR(currentPath));
+        }
+        folderSet.add(currentPath);
+        continue;
+      }
+
+      if (folderSet.has(currentPath)) {
+        throw new Error(FILE_TREE_PATH_KIND_CONFLICT_ERROR(currentPath));
+      }
+
+      if (!fileSet.has(currentPath)) {
+        fileSet.add(currentPath);
+        filePaths.push(currentPath);
+      }
+    }
+  });
+
+  // Pre-sort all concrete paths we may need to scan for children. This keeps
+  // explicit empty folders addressable without materializing full tree data.
+  const searchablePaths = [...folderSet, ...filePaths].sort();
 
   const lowerBound = (target: string): number => {
     let lo = 0;
-    let hi = sortedPaths.length;
+    let hi = searchablePaths.length;
     while (lo < hi) {
       const mid = (lo + hi) >>> 1;
-      if (sortedPaths[mid] < target) {
+      if (searchablePaths[mid] < target) {
         lo = mid + 1;
       } else {
         hi = mid;
@@ -42,17 +80,6 @@ export function generateLazyDataLoader(
     }
     return lo;
   };
-
-  // Pre-compute folder set (fast O(n) scan)
-  const folderSet = new Set<string>();
-  for (const path of sortedPaths) {
-    let current = '';
-    const parts = path.split('/');
-    for (let i = 0; i < parts.length - 1; i++) {
-      current = current !== '' ? `${current}/${parts[i]}` : parts[i];
-      folderSet.add(current);
-    }
-  }
 
   // Lazy caches - populated as nodes are accessed
   const nodeCache = new Map<string, FileTreeNode>();
@@ -74,7 +101,7 @@ export function generateLazyDataLoader(
     const children = new Set<string>();
 
     if (parentPath === rootId) {
-      for (const path of sortedPaths) {
+      for (const path of searchablePaths) {
         const slashIndex = path.indexOf('/');
         const childSegment = slashIndex >= 0 ? path.slice(0, slashIndex) : path;
         if (childSegment !== '') {
@@ -85,8 +112,8 @@ export function generateLazyDataLoader(
       const prefix = `${parentPath}/`;
       const prefixLen = prefix.length;
       // Jump directly into the matching range; then scan forward until we leave it.
-      for (let i = lowerBound(prefix); i < sortedPaths.length; i += 1) {
-        const path = sortedPaths[i];
+      for (let i = lowerBound(prefix); i < searchablePaths.length; i += 1) {
+        const path = searchablePaths[i];
         if (!path.startsWith(prefix)) {
           break;
         }
@@ -132,7 +159,7 @@ export function generateLazyDataLoader(
 
   const { getIdForKey, getKeyForId } = createIdMaps(rootId);
   const allKeys = new Set<string>([rootId]);
-  for (const path of sortedPaths) {
+  for (const path of searchablePaths) {
     allKeys.add(path);
   }
   for (const folder of folderSet) {

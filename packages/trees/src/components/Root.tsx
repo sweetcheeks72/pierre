@@ -40,6 +40,7 @@ import {
 } from '../features/gitStatusFeature';
 import type {
   FileTreeCallbacks,
+  FileTreeFiles,
   FileTreeHandle,
   FileTreeOptions,
   FileTreeSelectionItem,
@@ -56,6 +57,7 @@ import {
   filterOrphanedPaths,
 } from '../utils/expandPaths';
 import { fileListToTree } from '../utils/fileListToTree';
+import { getFileTreeFilesSignature } from '../utils/fileTreeFiles';
 import { getGitStatusSignature } from '../utils/getGitStatusSignature';
 import { getSelectionPath } from '../utils/getSelectionPath';
 import type { ChildrenSortOption } from '../utils/sortChildren';
@@ -64,11 +66,13 @@ import { useTree } from './hooks/useTree';
 import { Icon } from './Icon';
 import { VirtualizedList } from './VirtualizedList';
 
-export interface FileTreeRootProps {
-  fileTreeOptions: FileTreeOptions;
-  stateConfig?: FileTreeStateConfig;
+export interface FileTreeRootProps<
+  TFiles extends FileTreeFiles = FileTreeFiles,
+> {
+  fileTreeOptions: FileTreeOptions<TFiles>;
+  stateConfig?: FileTreeStateConfig<TFiles>;
   handleRef?: { current: FileTreeHandle | null };
-  callbacksRef?: { current: FileTreeCallbacks };
+  callbacksRef?: { current: FileTreeCallbacks<TFiles> };
 }
 
 // Local memo implementation to avoid importing from preact/compat, which
@@ -92,9 +96,6 @@ function memo<P>(
   Memoed.displayName = `Memo(${c.displayName ?? c.name ?? 'Component'})`;
   return Memoed as unknown as FunctionComponent<P>;
 }
-
-const getFilesSignature = (files: string[]): string =>
-  `${files.length}\0${files.join('\0')}`;
 
 const EMPTY_ANCESTORS: string[] = [];
 
@@ -356,12 +357,12 @@ function TreeItemInner({
 
 const TreeItem = memo(TreeItemInner, treeItemPropsAreEqual);
 
-export function Root({
+export function Root<TFiles extends FileTreeFiles = FileTreeFiles>({
   fileTreeOptions,
   stateConfig,
   handleRef,
   callbacksRef,
-}: FileTreeRootProps): JSX.Element {
+}: FileTreeRootProps<TFiles>): JSX.Element {
   'use no memo';
   const {
     initialFiles: files,
@@ -798,7 +799,7 @@ export function Root({
           path: targetPath.startsWith(FLATTENED_PREFIX)
             ? targetPath.slice(FLATTENED_PREFIX.length)
             : targetPath,
-          expectedFilesSignature: getFilesSignature(newFiles),
+          expectedFilesSignature: getFileTreeFilesSignature(newFiles),
         };
       } else {
         pendingDropTargetExpandRef.current = null;
@@ -985,7 +986,8 @@ export function Root({
     const pendingDropTarget = pendingDropTargetExpandRef.current;
     const dropTarget =
       pendingDropTarget != null &&
-      pendingDropTarget.expectedFilesSignature === getFilesSignature(files)
+      pendingDropTarget.expectedFilesSignature ===
+        getFileTreeFilesSignature(files)
         ? pendingDropTarget.path
         : null;
     pendingExpandMigrationRef.current = null;

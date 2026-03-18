@@ -1,7 +1,11 @@
 import { FLATTENED_PREFIX } from '../constants';
-import type { FileTreeNode } from '../types';
+import type { FileTreeFiles, FileTreeNode } from '../types';
 import { createIdMaps } from './createIdMaps';
 import { createLoaderUtils } from './createLoaderUtils';
+import {
+  FILE_TREE_PATH_KIND_CONFLICT_ERROR,
+  forEachFileTreeEntry,
+} from './fileTreeFiles';
 import type { ChildrenSortOption } from './sortChildren';
 import { defaultChildrenComparator, sortChildren } from './sortChildren';
 
@@ -26,7 +30,7 @@ const ROOT_ID = 'root';
  *   with the original path stored on each node's `path` field
  */
 export function fileListToTree(
-  filePaths: string[],
+  files: FileTreeFiles,
   options: FileListToTreeOptions = {}
 ): Record<string, FileTreeNode> {
   const {
@@ -42,17 +46,17 @@ export function fileListToTree(
   folderChildren.set(rootId, new Set());
 
   // Build the folder structure from file paths
-  for (const filePath of filePaths) {
-    const parts = filePath.split('/');
+  forEachFileTreeEntry(files, (inputPath, type) => {
+    const parts = inputPath.split('/');
     let currentPath: string | undefined;
 
-    for (let i = 0; i < parts.length; i++) {
+    for (let i = 0; i < parts.length; i += 1) {
       const part = parts[i];
-      const isFile = i === parts.length - 1;
+      const isTerminal = i === parts.length - 1;
+      const isFolder = !isTerminal || type === 'folder';
       const parentPath = currentPath ?? rootId;
       currentPath = currentPath != null ? `${currentPath}/${part}` : part;
 
-      // Ensure parent has a children set and add current path
       let parentChildren = folderChildren.get(parentPath);
       if (parentChildren == null) {
         parentChildren = new Set();
@@ -60,15 +64,23 @@ export function fileListToTree(
       }
       parentChildren.add(currentPath);
 
-      if (isFile) {
-        // Create file node (no children)
-        tree[currentPath] ??= { name: part, path: currentPath };
-      } else if (!folderChildren.has(currentPath)) {
-        // Ensure folder has a children set for tracking
-        folderChildren.set(currentPath, new Set());
+      if (isFolder) {
+        if (tree[currentPath] != null) {
+          throw new Error(FILE_TREE_PATH_KIND_CONFLICT_ERROR(currentPath));
+        }
+        if (!folderChildren.has(currentPath)) {
+          folderChildren.set(currentPath, new Set());
+        }
+        continue;
       }
+
+      if (folderChildren.has(currentPath)) {
+        throw new Error(FILE_TREE_PATH_KIND_CONFLICT_ERROR(currentPath));
+      }
+
+      tree[currentPath] ??= { name: part, path: currentPath };
     }
-  }
+  });
 
   // Helper to check if a path is a folder
   const isFolder = (path: string): boolean => folderChildren.has(path);

@@ -1,4 +1,13 @@
-export type FileList = string[];
+export type FileTreeEntryType = 'file' | 'folder';
+
+export type FileTreeEntry = {
+  path: string;
+  type: FileTreeEntryType;
+};
+
+export type FileTreeFiles = string[] | FileTreeEntry[];
+
+export type FileList = FileTreeFiles;
 
 export type GitStatus = 'added' | 'deleted' | 'modified';
 

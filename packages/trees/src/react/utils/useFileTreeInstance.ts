@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import {
   FileTree,
+  type FileTreeFiles,
   type FileTreeOptions,
   type FileTreeSelectionItem,
   type FileTreeStateConfig,
@@ -10,15 +11,15 @@ import {
 import type { ContextMenuItem, ContextMenuOpenContext } from '../../types';
 import { getGitStatusSignature } from '../../utils/getGitStatusSignature';
 
-interface UseFileTreeInstanceProps {
-  options: Omit<FileTreeOptions, 'initialFiles'>;
+interface UseFileTreeInstanceProps<TFiles extends FileTreeFiles> {
+  options: Omit<FileTreeOptions<TFiles>, 'initialFiles'>;
 
   // Default (uncontrolled) files
-  initialFiles?: string[];
+  initialFiles?: TFiles;
 
   // Controlled files
-  files?: string[];
-  onFilesChange?: (files: string[]) => void;
+  files?: TFiles;
+  onFilesChange?: (files: TFiles) => void;
 
   // Default (uncontrolled) state
   initialExpandedItems?: string[];
@@ -47,7 +48,7 @@ interface UseFileTreeInstanceReturn {
   ref(node: HTMLElement | null): void | (() => void);
 }
 
-export function useFileTreeInstance({
+export function useFileTreeInstance<TFiles extends FileTreeFiles>({
   options,
   initialFiles,
   files,
@@ -63,16 +64,16 @@ export function useFileTreeInstance({
   onContextMenuOpen,
   onContextMenuClose,
   gitStatus,
-}: UseFileTreeInstanceProps): UseFileTreeInstanceReturn {
+}: UseFileTreeInstanceProps<TFiles>): UseFileTreeInstanceReturn {
   const containerRef = useRef<HTMLElement | null>(null);
-  const instanceRef = useRef<FileTree | null>(null);
+  const instanceRef = useRef<FileTree<TFiles> | null>(null);
   const syncedGitStatusSignatureRef = useRef(getGitStatusSignature(gitStatus));
 
   // Keep a ref to the latest state-related props so the ref callback can read
   // them at creation time without including them as useMemo deps.
   const statePropsRef = useRef<
-    FileTreeStateConfig & {
-      initialFiles?: string[];
+    FileTreeStateConfig<TFiles> & {
+      initialFiles?: TFiles;
       gitStatus?: GitStatusEntry[];
       onContextMenuOpen?: (
         item: ContextMenuItem,
@@ -156,9 +157,9 @@ export function useFileTreeInstance({
         }
       };
 
-      const createInstance = (existingId?: string): FileTree => {
+      const createInstance = (existingId?: string): FileTree<TFiles> => {
         const sp = statePropsRef.current;
-        const optionsWithFiles = options as FileTreeOptions;
+        const optionsWithFiles = options as FileTreeOptions<TFiles>;
         syncedGitStatusSignatureRef.current = getGitStatusSignature(
           sp.gitStatus
         );
@@ -169,7 +170,7 @@ export function useFileTreeInstance({
               sp.initialFiles ??
               sp.files ??
               optionsWithFiles.initialFiles ??
-              [],
+              ([] as unknown as TFiles),
             id: existingId,
             ...(sp.gitStatus != null && { gitStatus: sp.gitStatus }),
           },
@@ -192,7 +193,7 @@ export function useFileTreeInstance({
         );
       };
 
-      const setupControlledDnD = (inst: FileTree): void => {
+      const setupControlledDnD = (inst: FileTree<TFiles>): void => {
         const sp = statePropsRef.current;
         if (sp.files !== undefined && options.dragAndDrop === true) {
           inst.setCallbacks({

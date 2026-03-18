@@ -8,7 +8,7 @@ import {
 import { describe, expect, test } from 'bun:test';
 
 import { fileTreeSearchFeature } from '../src/features/fileTreeSearchFeature';
-import type { FileTreeNode } from '../src/types';
+import type { FileTreeEntry, FileTreeFiles, FileTreeNode } from '../src/types';
 import { expandPathsWithAncestors } from '../src/utils/expandPaths';
 import { buildMapsFromLoader, TEST_CONFIGS } from './test-config';
 
@@ -37,7 +37,7 @@ const BASE_FILES = ['README.md', 'src/index.ts', 'src/components/Button.tsx'];
 const EXTRA_FILE = 'src/components/Footer.tsx';
 
 function createTreeWithFiles(
-  files: string[],
+  files: FileTreeFiles,
   cfg: (typeof TEST_CONFIGS)[number],
   expandedPaths: string[]
 ) {
@@ -176,6 +176,26 @@ for (const cfg of TEST_CONFIGS) {
       // Footer.tsx should appear without collapse/reopen
       expect(getItemNames(tree)).toContain('Footer.tsx');
       expect(getItemNames(tree)).toContain('Button.tsx');
+    });
+
+    test('adding an explicit empty folder shows it immediately', () => {
+      const startFiles: FileTreeEntry[] = [
+        { path: 'src', type: 'folder' },
+        { path: 'src/index.ts', type: 'file' },
+      ];
+      const tree = createTreeWithFiles(startFiles, cfg, ['src']);
+
+      expect(getItemNames(tree)).not.toContain('empty');
+
+      const newLoader = cfg.createLoader(
+        [...startFiles, { path: 'src/empty', type: 'folder' }],
+        { flattenEmptyDirectories: cfg.flattenEmptyDirectories }
+      );
+      tree.setConfig((prev) => ({ ...prev, dataLoader: newLoader }));
+      tree.rebuildTree();
+
+      expect(getItemNames(tree)).toContain('empty');
+      expect(getItemNames(tree)).toContain('index.ts');
     });
 
     test('removing a file from an expanded folder hides the item immediately', () => {

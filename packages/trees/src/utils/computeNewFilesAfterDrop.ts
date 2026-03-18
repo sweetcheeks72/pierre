@@ -1,4 +1,6 @@
 import { FLATTENED_PREFIX } from '../constants';
+import type { FileTreeEntry, FileTreeEntryType, FileTreeFiles } from '../types';
+import { forEachFileTreeEntry } from './fileTreeFiles';
 
 export interface DropCollision {
   origin: string | null;
@@ -37,25 +39,17 @@ const hasSelectedFolderAncestor = (
   return false;
 };
 
-const buildFolderSet = (files: string[]): Set<string> => {
-  const folders = new Set<string>();
-  for (const file of files) {
-    let slash = file.lastIndexOf('/');
-    while (slash !== -1) {
-      folders.add(file.slice(0, slash));
-      slash = file.lastIndexOf('/', slash - 1);
-    }
-  }
-  return folders;
-};
-
-const getSelectedFolderForFile = (
-  file: string,
+const getSelectedFolderForPath = (
+  path: string,
   selectedFolders: Set<string>
 ): string | undefined => {
-  let slash = file.lastIndexOf('/');
+  if (selectedFolders.has(path)) {
+    return path;
+  }
+
+  let slash = path.lastIndexOf('/');
   while (slash !== -1) {
-    const folder = file.slice(0, slash);
+    const folder = path.slice(0, slash);
     if (selectedFolders.has(folder)) {
       return folder;
     }
@@ -73,18 +67,45 @@ const getSelectedFolderForFile = (
  * @param options - Optional move behavior, including collision handling
  * @returns A new file list with the dragged items moved
  */
+export function computeNewFilesAfterDrop<TFiles extends FileTreeFiles>(
+  currentFiles: TFiles,
+  draggedPaths: string[],
+  targetFolderPath: string,
+  options?: ComputeDropOptions
+): TFiles;
 export function computeNewFilesAfterDrop(
-  currentFiles: string[],
+  currentFiles: FileTreeFiles,
   draggedPaths: string[],
   targetFolderPath: string,
   options: ComputeDropOptions = {}
-): string[] {
+): FileTreeFiles {
   const normalizedTarget = normalizePath(targetFolderPath);
   const targetPrefix =
     normalizedTarget === 'root' ? '' : `${normalizedTarget}/`;
 
-  const currentFileSet = new Set(currentFiles);
-  const folderSet = buildFolderSet(currentFiles);
+  const normalizedItems: Array<{ path: string; type: FileTreeEntryType }> = [];
+  const currentFileSet = new Set<string>();
+  const folderSet = new Set<string>();
+
+  const mode = forEachFileTreeEntry(currentFiles, (inputPath, type) => {
+    normalizedItems.push({ path: inputPath, type });
+
+    const parts = inputPath.split('/');
+    let currentPath = '';
+
+    for (let i = 0; i < parts.length; i += 1) {
+      currentPath =
+        currentPath !== '' ? `${currentPath}/${parts[i]}` : parts[i];
+      const isTerminal = i === parts.length - 1;
+      const isFolder = !isTerminal || type === 'folder';
+
+      if (isFolder) {
+        folderSet.add(currentPath);
+      } else {
+        currentFileSet.add(currentPath);
+      }
+    }
+  });
 
   const normalizedDragged = [...new Set(draggedPaths.map(normalizePath))];
   const orderedDragged = normalizedDragged
@@ -111,16 +132,16 @@ export function computeNewFilesAfterDrop(
   }
 
   const proposedDestinationByOrigin = new Map<string, string>();
-  for (const file of currentFiles) {
-    if (selectedFiles.has(file)) {
-      const destination = `${targetPrefix}${getBasename(file)}`;
-      if (destination !== file) {
-        proposedDestinationByOrigin.set(file, destination);
+  for (const item of normalizedItems) {
+    if (selectedFiles.has(item.path)) {
+      const destination = `${targetPrefix}${getBasename(item.path)}`;
+      if (destination !== item.path) {
+        proposedDestinationByOrigin.set(item.path, destination);
       }
       continue;
     }
 
-    const selectedFolder = getSelectedFolderForFile(file, selectedFolders);
+    const selectedFolder = getSelectedFolderForPath(item.path, selectedFolders);
     if (selectedFolder == null) {
       continue;
     }
@@ -132,20 +153,21 @@ export function computeNewFilesAfterDrop(
       continue;
     }
 
-    const destination = `${targetPrefix}${getBasename(selectedFolder)}${file.slice(selectedFolder.length)}`;
-    if (destination !== file) {
-      proposedDestinationByOrigin.set(file, destination);
+    const destination = `${targetPrefix}${getBasename(selectedFolder)}${item.path.slice(selectedFolder.length)}`;
+    if (destination !== item.path) {
+      proposedDestinationByOrigin.set(item.path, destination);
     }
   }
 
   const finalPathByOrigin = new Map<string, string | null>();
   const occupantByDestination = new Map<string, string>();
-  for (const file of currentFiles) {
-    finalPathByOrigin.set(file, file);
-    occupantByDestination.set(file, file);
+  for (const item of normalizedItems) {
+    finalPathByOrigin.set(item.path, item.path);
+    occupantByDestination.set(item.path, item.path);
   }
 
-  for (const origin of currentFiles) {
+  for (const item of normalizedItems) {
+    const origin = item.path;
     const destination = proposedDestinationByOrigin.get(origin);
     if (destination == null) {
       continue;
@@ -176,9 +198,20 @@ export function computeNewFilesAfterDrop(
     finalPathByOrigin.set(origin, destination);
   }
 
+  if (mode === 'entries') {
+    const result: FileTreeEntry[] = [];
+    for (const item of normalizedItems) {
+      const next = finalPathByOrigin.get(item.path);
+      if (next != null) {
+        result.push({ path: next, type: item.type });
+      }
+    }
+    return result;
+  }
+
   const result: string[] = [];
-  for (const file of currentFiles) {
-    const next = finalPathByOrigin.get(file);
+  for (const item of normalizedItems) {
+    const next = finalPathByOrigin.get(item.path);
     if (next != null) {
       result.push(next);
     }

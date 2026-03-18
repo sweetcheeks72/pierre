@@ -5,6 +5,9 @@ export type {
   ContextMenuAnchorRect,
   ContextMenuItem,
   ContextMenuOpenContext,
+  FileTreeEntry,
+  FileTreeEntryType,
+  FileTreeFiles,
 } from './types';
 export * from './utils/expandImplicitParentDirectories';
 export * from './utils/sortChildren';

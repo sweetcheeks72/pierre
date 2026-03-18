@@ -6,7 +6,7 @@ import {
   CONTEXT_MENU_TRIGGER_TYPE,
 } from '../../constants';
 import type { FileTreeCallbacks } from '../../FileTree';
-import type { FileTreeNode } from '../../types';
+import type { FileTreeFiles, FileTreeNode } from '../../types';
 import { getSelectionPath } from '../../utils/getSelectionPath';
 
 const BLOCKED_CONTEXT_MENU_NAV_KEYS = new Set([
@@ -20,11 +20,13 @@ const BLOCKED_CONTEXT_MENU_NAV_KEYS = new Set([
   'PageDown',
 ]);
 
-export interface UseContextMenuControllerArgs {
+export interface UseContextMenuControllerArgs<
+  TFiles extends FileTreeFiles = FileTreeFiles,
+> {
   tree: TreeInstance<FileTreeNode>;
   isContextMenuEnabled: boolean;
-  callbacksRef?: { current: FileTreeCallbacks };
-  files: string[];
+  callbacksRef?: { current: FileTreeCallbacks<TFiles> };
+  files: TFiles;
   idToPath: Map<string, string>;
 }
 
@@ -49,13 +51,13 @@ export interface UseContextMenuControllerResult {
   handleWashTouchMoveCapture: (e: TouchEvent) => void;
 }
 
-export function useContextMenuController({
+export function useContextMenuController<TFiles extends FileTreeFiles>({
   tree,
   isContextMenuEnabled,
   callbacksRef,
   files,
   idToPath,
-}: UseContextMenuControllerArgs): UseContextMenuControllerResult {
+}: UseContextMenuControllerArgs<TFiles>): UseContextMenuControllerResult {
   const [contextMenuItemId, setContextMenuItemId] = useState<string | null>(
     null
   );

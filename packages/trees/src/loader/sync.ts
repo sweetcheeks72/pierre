@@ -1,6 +1,6 @@
 import type { TreeDataLoader } from '@headless-tree/core';
 
-import type { FileTreeData, FileTreeNode } from '../types';
+import type { FileTreeData, FileTreeFiles, FileTreeNode } from '../types';
 import { fileListToTree } from '../utils/fileListToTree';
 import type { DataLoaderOptions } from './index';
 
@@ -39,7 +39,7 @@ export function generateSyncDataLoaderFromTreeData(
  * @param options - Configuration options
  */
 export function generateSyncDataLoader(
-  filePaths: string[],
+  files: FileTreeFiles,
   options: DataLoaderOptions = {}
 ): TreeDataLoader<FileTreeNode> {
   const {
@@ -49,6 +49,6 @@ export function generateSyncDataLoader(
     sortComparator,
   } = options;
 
-  const tree = fileListToTree(filePaths, { rootId, rootName, sortComparator });
+  const tree = fileListToTree(files, { rootId, rootName, sortComparator });
   return generateSyncDataLoaderFromTreeData(tree, { flattenEmptyDirectories });
 }
