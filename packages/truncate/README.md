@@ -272,7 +272,7 @@ loops). These rules do not allow you to make changes inside the query styles
 that would change the layout of the page.
 
 This single fact drives most of the more complex design decisions in this
-library. The clipping marker that is is shown during overflow is set ass
+library. The clipping marker that is is shown during overflow is set as
 `position: absolute` and overlaid on top of your contents, in order to avoid
 triggering this limitation. This is also the reason why there is no way to
 change the style of your _contents_ when text clips, and why there is not
