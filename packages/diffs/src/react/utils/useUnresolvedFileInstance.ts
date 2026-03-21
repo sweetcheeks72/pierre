@@ -22,6 +22,7 @@ import type {
   FileContents,
   FileDiffMetadata,
   MergeConflictActionPayload,
+  MergeConflictMarkerRow,
 } from '../../types';
 import { areOptionsEqual } from '../../utils/areOptionsEqual';
 import {
@@ -47,7 +48,8 @@ interface UseUnresolvedFileInstanceProps<LAnnotation> {
 
 interface UseUnresolvedFileInstanceReturn<LAnnotation> {
   fileDiff: FileDiffMetadata;
-  actions: MergeConflictDiffAction[];
+  actions: (MergeConflictDiffAction | undefined)[];
+  markerRows: MergeConflictMarkerRow[];
   ref(node: HTMLElement | null): void;
   getHoveredLine(): GetHoveredLineResult<'diff'> | undefined;
   getInstance(): UnresolvedFile<LAnnotation> | undefined;
@@ -62,29 +64,32 @@ export function useUnresolvedFileInstance<LAnnotation>({
   hasConflictUtility,
   hasGutterRenderUtility,
 }: UseUnresolvedFileInstanceProps<LAnnotation>): UseUnresolvedFileInstanceReturn<LAnnotation> {
-  const [{ fileDiff, actions }, setState] = useState(() => {
-    const { fileDiff, actions } = parseMergeConflictDiffFromFile(file);
-    return { fileDiff, actions };
+  const [{ fileDiff, actions, markerRows }, setState] = useState(() => {
+    const { fileDiff, actions, markerRows } =
+      parseMergeConflictDiffFromFile(file);
+    return { fileDiff, actions, markerRows };
   });
   // UnresolvedFile is intentionally uncontrolled in React. Keep an internal
   // source-of-truth file so sequential conflict actions apply to the latest
   // resolved contents rather than the initial prop value.
-  const activeFileRef = useRef(file);
   const onMergeConflictAction = useStableCallback(
     (
       payload: MergeConflictActionPayload,
       instance: UnresolvedFile<LAnnotation>
     ) => {
-      const activeFile = activeFileRef.current;
-      const newFile = instance.resolveConflict(
-        payload.conflict.conflictIndex,
-        payload.resolution,
-        activeFile
-      );
-      if (newFile == null) return;
-      activeFileRef.current = newFile;
-      const { fileDiff, actions } = parseMergeConflictDiffFromFile(newFile);
-      setState({ fileDiff, actions });
+      setState((prevState) => {
+        const { fileDiff, actions, markerRows } =
+          instance.resolveConflict(
+            payload.conflict.conflictIndex,
+            payload.resolution,
+            prevState.fileDiff
+          ) ?? {};
+        if (fileDiff == null || actions == null || markerRows == null) {
+          return prevState;
+        } else {
+          return { fileDiff, actions, markerRows };
+        }
+      });
     }
   );
   const poolManager = useContext(WorkerPoolContext);
@@ -109,6 +114,7 @@ export function useUnresolvedFileInstance<LAnnotation>({
       void instanceRef.current.hydrate({
         fileDiff,
         actions,
+        markerRows,
         fileContainer,
         lineAnnotations,
         prerenderedHTML,
@@ -138,6 +144,7 @@ export function useUnresolvedFileInstance<LAnnotation>({
     void instance.render({
       fileDiff,
       actions,
+      markerRows,
       lineAnnotations,
       forceRender,
     });
@@ -156,7 +163,7 @@ export function useUnresolvedFileInstance<LAnnotation>({
     return instanceRef.current ?? undefined;
   }, []);
 
-  return { ref, getHoveredLine, fileDiff, actions, getInstance };
+  return { ref, getHoveredLine, fileDiff, actions, markerRows, getInstance };
 }
 
 function mergeUnresolvedOptions<LAnnotation>(

@@ -17,7 +17,7 @@ import type { DiffBasePropsReact } from '../types';
 
 interface RenderDiffChildrenProps<LAnnotation, T> {
   fileDiff?: FileDiffMetadata;
-  actions?: MergeConflictDiffAction[];
+  actions?: (MergeConflictDiffAction | undefined)[];
   deletionFile?: FileContents;
   additionFile?: FileContents;
   renderHeaderPrefix: DiffBasePropsReact<LAnnotation>['renderHeaderPrefix'];
@@ -74,7 +74,10 @@ export function renderDiffChildren<LAnnotation, T>({
         renderMergeConflictUtility != null &&
         getInstance != null &&
         actions.map((action) => {
-          const slot = getSlotName(action);
+          if (action == null || fileDiff == null) {
+            return undefined;
+          }
+          const slot = getSlotName(action, fileDiff);
           return (
             <div key={slot} slot={slot} style={MergeConflictSlotStyles}>
               {renderMergeConflictUtility(action, getInstance)}
@@ -90,11 +93,15 @@ export function renderDiffChildren<LAnnotation, T>({
   );
 }
 
-function getSlotName(action: MergeConflictDiffAction): string | undefined {
-  const anchor = getMergeConflictActionAnchor(action);
+function getSlotName(
+  action: MergeConflictDiffAction,
+  fileDiff: FileDiffMetadata
+): string | undefined {
+  const anchor = getMergeConflictActionAnchor(action, fileDiff);
   return anchor != null
     ? getMergeConflictActionSlotName({
-        ...anchor,
+        hunkIndex: anchor.hunkIndex,
+        lineIndex: anchor.lineIndex,
         conflictIndex: action.conflictIndex,
       })
     : undefined;
