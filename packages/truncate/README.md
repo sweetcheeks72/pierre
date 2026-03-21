@@ -18,7 +18,7 @@ The way to do this varies depending on your tools, but in most modern setups
 (e.g. next/vite), it should just be a single import.
 
 ```css
-import "@pierre/truncaate/style.css";
+import "@pierre/truncate/style.css";
 ```
 
 Lastly, due to the underlying css technique that's used to make this library
