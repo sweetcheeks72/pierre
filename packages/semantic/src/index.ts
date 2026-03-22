@@ -25,6 +25,7 @@ export {
   changesToAnnotations,
   semanticDiffToAnnotations,
 } from './adapter/pierre-adapter';
+export { renderSemanticAnnotation } from './adapter/render';
 
 // Graph
 export type { EntityGraph, EntityRef, RefType } from './graph/types';

@@ -6,10 +6,15 @@ export interface SemanticChange {
   changeType: ChangeType;
   entityType: string;
   entityName: string;
+  oldEntityName?: string;
   filePath: string;
   oldFilePath?: string;
   beforeContent?: string;
   afterContent?: string;
+  startLine?: number;
+  endLine?: number;
+  oldStartLine?: number;
+  oldEndLine?: number;
   commitSha?: string;
   author?: string;
   timestamp?: string;

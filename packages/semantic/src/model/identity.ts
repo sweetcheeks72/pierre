@@ -42,6 +42,10 @@ export function matchEntities(
           filePath: afterEntity.filePath,
           beforeContent: beforeEntity.content,
           afterContent: afterEntity.content,
+          startLine: afterEntity.startLine,
+          endLine: afterEntity.endLine,
+          oldStartLine: beforeEntity.startLine,
+          oldEndLine: beforeEntity.endLine,
           commitSha,
           author,
         });
@@ -81,6 +85,10 @@ export function matchEntities(
         changeType,
         entityType: afterEntity.entityType,
         entityName: afterEntity.name,
+        oldEntityName:
+          beforeEntity.name !== afterEntity.name
+            ? beforeEntity.name
+            : undefined,
         filePath: afterEntity.filePath,
         oldFilePath:
           beforeEntity.filePath !== afterEntity.filePath
@@ -88,6 +96,10 @@ export function matchEntities(
             : undefined,
         beforeContent: beforeEntity.content,
         afterContent: afterEntity.content,
+        startLine: afterEntity.startLine,
+        endLine: afterEntity.endLine,
+        oldStartLine: beforeEntity.startLine,
+        oldEndLine: beforeEntity.endLine,
         commitSha,
         author,
       });
@@ -143,6 +155,8 @@ export function matchEntities(
           changeType,
           entityType: afterEntity.entityType,
           entityName: afterEntity.name,
+          oldEntityName:
+            bestMatch.name !== afterEntity.name ? bestMatch.name : undefined,
           filePath: afterEntity.filePath,
           oldFilePath:
             bestMatch.filePath !== afterEntity.filePath
@@ -150,6 +164,10 @@ export function matchEntities(
               : undefined,
           beforeContent: bestMatch.content,
           afterContent: afterEntity.content,
+          startLine: afterEntity.startLine,
+          endLine: afterEntity.endLine,
+          oldStartLine: bestMatch.startLine,
+          oldEndLine: bestMatch.endLine,
           commitSha,
           author,
         });
@@ -167,6 +185,8 @@ export function matchEntities(
       entityName: entity.name,
       filePath: entity.filePath,
       beforeContent: entity.content,
+      oldStartLine: entity.startLine,
+      oldEndLine: entity.endLine,
       commitSha,
       author,
     });
@@ -182,6 +202,8 @@ export function matchEntities(
       entityName: entity.name,
       filePath: entity.filePath,
       afterContent: entity.content,
+      startLine: entity.startLine,
+      endLine: entity.endLine,
       commitSha,
       author,
     });

@@ -14,39 +14,82 @@ export interface SemanticAnnotation {
   entityName: string;
   oldName?: string;
   similarity?: number;
+  startLine?: number;
+  endLine?: number;
 }
 
 /**
  * Convert SemanticChange[] from the differ into DiffLineAnnotation[] for Pierre's rendering.
  * Maps change type to annotation side: added->additions, deleted->deletions,
  * modified->both sides, renamed/moved->additions.
+ * Uses actual entity start lines from the semantic differ.
  */
 export function changesToAnnotations(
   changes: SemanticChange[]
 ): DiffLineAnnotation<SemanticAnnotation>[] {
   const result: DiffLineAnnotation<SemanticAnnotation>[] = [];
   for (const change of changes) {
-    const metadata: SemanticAnnotation = {
+    const baseMetadata: SemanticAnnotation = {
       changeType: change.changeType,
       entityType: change.entityType,
       entityName: change.entityName,
+      oldName: change.oldEntityName,
     };
-    const push = (side: 'deletions' | 'additions') =>
-      result.push({ side, lineNumber: 1, metadata });
+
     switch (change.changeType) {
       case 'added':
-        push('additions');
+        result.push({
+          side: 'additions',
+          lineNumber: change.startLine ?? 1,
+          metadata: {
+            ...baseMetadata,
+            startLine: change.startLine,
+            endLine: change.endLine,
+          },
+        });
         break;
       case 'deleted':
-        push('deletions');
+        result.push({
+          side: 'deletions',
+          lineNumber: change.oldStartLine ?? 1,
+          metadata: {
+            ...baseMetadata,
+            startLine: change.oldStartLine,
+            endLine: change.oldEndLine,
+          },
+        });
         break;
       case 'modified':
-        push('deletions');
-        push('additions');
+        result.push({
+          side: 'deletions',
+          lineNumber: change.oldStartLine ?? 1,
+          metadata: {
+            ...baseMetadata,
+            startLine: change.oldStartLine,
+            endLine: change.oldEndLine,
+          },
+        });
+        result.push({
+          side: 'additions',
+          lineNumber: change.startLine ?? 1,
+          metadata: {
+            ...baseMetadata,
+            startLine: change.startLine,
+            endLine: change.endLine,
+          },
+        });
         break;
       case 'renamed':
       case 'moved':
-        push('additions');
+        result.push({
+          side: 'additions',
+          lineNumber: change.startLine ?? 1,
+          metadata: {
+            ...baseMetadata,
+            startLine: change.startLine,
+            endLine: change.endLine,
+          },
+        });
         break;
     }
   }

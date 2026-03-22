@@ -4,6 +4,7 @@
     "composite": true,
     "outDir": "./dist",
     "rootDir": ".",
+    "lib": ["ES2023", "DOM"],
     "types": [
       "node",
       "bun"
