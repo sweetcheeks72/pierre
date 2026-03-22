@@ -22,6 +22,9 @@
     },
     {
       "path": "packages/storage-elements-next/tsconfig.json"
+    },
+    {
+      "path": "packages/semantic/tsconfig.json"
     }
   ]
 }
