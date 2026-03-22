@@ -1,0 +1,29 @@
+{
+  "name": "@pierre/semantic",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "tsc": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "tree-sitter": "catalog:",
+    "tree-sitter-go": "catalog:",
+    "tree-sitter-javascript": "catalog:",
+    "tree-sitter-python": "catalog:",
+    "tree-sitter-rust": "catalog:",
+    "tree-sitter-typescript": "catalog:",
+    "jsonc-parser": "catalog:",
+    "js-yaml": "catalog:",
+    "smol-toml": "catalog:",
+    "csv-parse": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/js-yaml": "catalog:",
+    "@types/bun": "catalog:"
+  }
+}
